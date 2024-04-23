@@ -1,3 +1,2 @@
 build
-libtorch
-libtorch-shared-with-deps-latest.zip
+third_party
