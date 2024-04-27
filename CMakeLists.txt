@@ -1,16 +1,19 @@
 cmake_minimum_required(VERSION 3.27 FATAL_ERROR)
 project(strgpt LANGUAGES CXX)
 
-include(FetchContent)
-
 if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message(FATAL_ERROR "Please use Clang to build this project")
 endif()
 
-FetchContent_Declare(
-  libtorch
-  URL https://download.pytorch.org/libtorch/nightly/cpu/libtorch-shared-with-deps-latest.zip
-)
+# Check if building on MacOS and adjust the URL accordingly
+if(APPLE)
+  set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.3.0.zip")
+else()
+  set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-latest.zip")
+endif()
+
+include(FetchContent)
+FetchContent_Declare(libtorch URL ${LIBTORCH_URL})
 
 # Download and unpack LibTorch if it hasn't been done already
 FetchContent_GetProperties(libtorch)
@@ -24,19 +27,28 @@ list(APPEND CMAKE_PREFIX_PATH "${TORCH_INSTALL_PREFIX}")
 find_package(Torch REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}")
-set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 
-# The following code block is suggested to be used on Windows.
-# According to https://github.com/pytorch/pytorch/issues/25457,
-# the DLLs need to be copied to avoid memory errors.
-if (MSVC)
-  file(GLOB TORCH_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")
-  add_custom_command(TARGET ${PROJECT_NAME}
-                     POST_BUILD
-                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                     ${TORCH_DLLS}
-                     $<TARGET_FILE_DIR:${PROJECT_NAME}>)
-endif (MSVC)
+if(APPLE)
+  # Execute process to get the path to libomp
+  execute_process(
+    COMMAND brew --prefix libomp
+    OUTPUT_VARIABLE LIBOMP_PREFIX
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+
+  set(LIBOMP_LIB_PATH "${LIBOMP_PREFIX}/lib/libomp.dylib")
+  if(NOT EXISTS "${LIBOMP_LIB_PATH}")
+    message(FATAL_ERROR "libomp.dylib not found at ${LIBOMP_LIB_PATH}. Please ensure it is installed.")
+  endif()
+  target_link_libraries(${PROJECT_NAME} "${LIBOMP_LIB_PATH}")
+
+  # Setting the RPATH so that libomp.dylib and other dynamic libraries can be found at runtime
+  set_target_properties(${PROJECT_NAME} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE)
+  set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH "${LIBOMP_PREFIX}/lib;${TORCH_INSTALL_PREFIX}/lib")
+endif()
+
+set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
