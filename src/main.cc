@@ -8,7 +8,7 @@
 int main() {
   const char* assets_root= std::getenv("ASSETS_ROOT");
   if (assets_root == nullptr) {
-    std::cerr << "ASSETS_ROOT env variable is not set" << std::endl;
+    std::cerr << "Error: ASSETS_ROOT env variable is not set" << std::endl;
     return 1;
   }
 

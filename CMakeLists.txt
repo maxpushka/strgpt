@@ -45,6 +45,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(re2)
 
+# ------------------- Google Test ---------------------
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+FetchContent_MakeAvailable(googletest)
+
 # ==================================================
 # = Executable Definitions
 # ==================================================
@@ -54,6 +61,13 @@ add_executable(${PROJECT_NAME}
   src/bpe.cc
 )
 target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}" re2::re2)
+
+add_executable(${PROJECT_NAME}_test
+  src/bpe_test.cc
+  src/bpe.h
+  src/bpe.cc
+)
+target_link_libraries(${PROJECT_NAME}_test "${TORCH_LIBRARIES}" re2::re2 GTest::gtest_main)
 
 # ==================================================
 # = Apple Specific Configuration
