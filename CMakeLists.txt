@@ -92,9 +92,13 @@ if(APPLE)
     message(FATAL_ERROR "libomp.dylib not found at ${LIBOMP_LIB_PATH}. Please ensure it is installed.")
   endif()
   target_link_libraries(${PROJECT_NAME} "${LIBOMP_LIB_PATH}")
+  target_link_libraries(${PROJECT_NAME}_tests "${LIBOMP_LIB_PATH}")
 
   # Setting the RPATH so that libomp.dylib and other dynamic libraries can be found at runtime
   set_target_properties(${PROJECT_NAME} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE)
   set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH "${LIBOMP_PREFIX}/lib;${TORCH_INSTALL_PREFIX}/lib")
+
+  set_target_properties(${PROJECT_NAME}_tests PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE)
+  set_target_properties(${PROJECT_NAME}_tests PROPERTIES INSTALL_RPATH "${LIBOMP_PREFIX}/lib;${TORCH_INSTALL_PREFIX}/lib")
 endif()
 
