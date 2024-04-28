@@ -1,7 +1,6 @@
 #include "bpe.h"
 #include <codecvt>
 #include <fstream>
-#include <iostream>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -12,9 +11,7 @@
 namespace bpe {
 BPE::BPE(std::fstream &vocab_file, std::fstream &merges_file, std::unique_ptr<RE2> re) : re{std::move(re)} {
   load_vocab(vocab_file);
-  std::cout << t2i.size() << " " << i2t.size() << " ";
   load_merge_rules(merges_file);
-  std::cout << bpe_ranks.size() << std::endl;
 }
 
 void BPE::encode(const std::string &text,
@@ -144,8 +141,8 @@ void BPE::bpe(const std::wstring &token, std::vector<std::wstring> *result) cons
     }
     return -1;
   };
-  auto _right = [](int i, size_t cap, std::set<int> &merged) {
-    for (size_t j = i + 1; j < cap; j++) {
+  auto _right = [](int i, int cap, std::set<int> &merged) {
+    for (int j = i + 1; j < cap; j++) {
       if (merged.find(j) == merged.end()) return j;
     }
     return cap;
@@ -158,8 +155,8 @@ void BPE::bpe(const std::wstring &token, std::vector<std::wstring> *result) cons
     int min_score = INT_MAX;
     int to_merge = -1;  // indices into pairs.
 
-    for (size_t i = 0; i < pairs.size(); ++i) {
-      if (merged.find(i) == merged.end()) {  // pair `i` is not merged.
+    for (int i = 0; i < pairs.size(); ++i) {
+      if (merged.find(i) == merged.end()) {  // pair i is not merged.
         auto iter = bpe_ranks.find(pairs[i]);
         int score = iter != bpe_ranks.end() ? iter->second : INT_MAX;
         if (score < min_score) {
@@ -174,16 +171,16 @@ void BPE::bpe(const std::wstring &token, std::vector<std::wstring> *result) cons
     merged.insert(to_merge);
     std::wstring merge_into = pairs[to_merge].first + pairs[to_merge].second;
 
-    size_t l = _left(to_merge, merged);
+    int l = _left(to_merge, merged);
     if (l >= 0) pairs[l].second = merge_into;
-    size_t r = _right(to_merge, pairs.size(), merged);
+    int r = _right(to_merge, pairs.size(), merged);
     if (r < pairs.size()) pairs[r].first = merge_into;
   }  // end while (true)
 
   if (merged.size() == pairs.size()) {
     result->push_back(token);
   } else {
-    for (size_t i = 0; i < pairs.size(); ++i) {
+    for (int i = 0; i < pairs.size(); ++i) {
       if (merged.find(i) == merged.end()) {
         if (_left(i, merged) < 0) result->push_back(pairs[i].first);
         result->push_back(pairs[i].second);
@@ -202,6 +199,35 @@ void BPE::get_pairs(const std::wstring &word,
   for (size_t i = 1; i < word.size(); i++) {
     pairs->emplace_back(std::wstring(1, previous), std::wstring(1, word[i]));
     previous = word[i];
+  }
+}
+
+void BPE::bytes_to_unicode(std::unordered_map<uint8_t, wchar_t> *b2u,
+                           std::unordered_map<wchar_t, uint8_t> *u2b) {
+  auto _insert_range = [=](int start, int end) {
+    for (int c = start; c <= end; c++) {
+      b2u->insert({uint8_t(c), wchar_t(c)});
+    }
+  };
+
+  b2u->clear();
+  _insert_range(L'!', L'~');
+  _insert_range(L'¡', L'¬');
+  _insert_range(L'®', L'ÿ');
+
+  int n = 0;
+  for (int b = 0; b < 256; b++) {
+    if (b2u->find(uint8_t(b)) == b2u->end()) {
+      b2u->insert({uint8_t(b), wchar_t(256 + n)});
+      n++;
+    }
+  }
+
+  if (u2b != nullptr) {
+    u2b->clear();
+    for (auto e : (*b2u)) {
+      u2b->insert({e.second, e.first});
+    }
   }
 }
 }  // namespace bpe

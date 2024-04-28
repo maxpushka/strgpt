@@ -55,6 +55,8 @@ FetchContent_MakeAvailable(googletest)
 # ==================================================
 # = Executable Definitions
 # ==================================================
+
+# ------------------- Main Binary ---------------------
 add_executable(${PROJECT_NAME}
   src/main.cc
   src/bpe.h
@@ -62,12 +64,17 @@ add_executable(${PROJECT_NAME}
 )
 target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}" re2::re2)
 
-add_executable(${PROJECT_NAME}_test
+# ------------------- Tests ---------------------
+enable_testing()
+add_executable(${PROJECT_NAME}_tests
   src/bpe_test.cc
   src/bpe.h
   src/bpe.cc
 )
-target_link_libraries(${PROJECT_NAME}_test "${TORCH_LIBRARIES}" re2::re2 GTest::gtest_main)
+target_link_libraries(${PROJECT_NAME}_tests "${TORCH_LIBRARIES}" re2::re2 GTest::gtest_main)
+target_compile_definitions(${PROJECT_NAME}_tests PRIVATE UNIT_TEST)
+include(GoogleTest)
+gtest_discover_tests(${PROJECT_NAME}_tests)
 
 # ==================================================
 # = Apple Specific Configuration

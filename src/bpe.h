@@ -1,10 +1,15 @@
 #pragma once
 
-#include <re2/re2.h>
-#include <re2/stringpiece.h>
 #include <memory>
 #include <unordered_map>
 #include <vector>
+
+#include <re2/re2.h>
+#include <re2/stringpiece.h>
+
+#ifdef UNIT_TEST
+#include <gtest/gtest_prod.h>
+#endif
 
 namespace bpe {
 // hash_pair_wstring is used in BPERanks to make a pair of wstrings
@@ -68,5 +73,20 @@ class BPE final {
 
   static void get_pairs(const std::wstring &word,
                         std::vector<std::pair<std::wstring, std::wstring>> *pairs);
+
+  static void bytes_to_unicode(std::unordered_map<uint8_t, wchar_t> *b2u,
+                               std::unordered_map<wchar_t, uint8_t> *u2b);
+
+#ifdef UNIT_TEST
+  FRIEND_TEST(TokenizerBPE, RegexCompilation);
+  FRIEND_TEST(TokenizerBPE, BytesToUnicodeConversion);
+  FRIEND_TEST(TokenizerBPE, ByteEncodeToken);
+  FRIEND_TEST(TokenizerBPE, LoadVocab);
+  FRIEND_TEST(TokenizerBPE, LoadMergeRules);
+  FRIEND_TEST(TokenizerBPE, GetPairs);
+  FRIEND_TEST(TokenizerBPE, BPEAlgorithm);
+  FRIEND_TEST(TokenizerBPE, Tokenize);
+  FRIEND_TEST(TokenizerBPE, EncodeDecode);
+#endif
 };
 }  // namespace bpe
