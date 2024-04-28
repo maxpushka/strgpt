@@ -9,6 +9,14 @@ if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 # ==================================================
+# = Compilation Settings
+# ==================================================
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_CXX_STANDARD 20)
+
+# ==================================================
 # = Dependencies Setup
 # ==================================================
 include(FetchContent)
@@ -23,20 +31,29 @@ endif()
 
 FetchContent_Declare(libtorch URL ${LIBTORCH_URL})
 FetchContent_MakeAvailable(libtorch)
-set(TORCH_INSTALL_PREFIX "${libtorch_SOURCE_DIR}")
 
-list(APPEND CMAKE_PREFIX_PATH "${TORCH_INSTALL_PREFIX}")
+list(APPEND CMAKE_PREFIX_PATH "${libtorch_SOURCE_DIR}")
 find_package(Torch REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+
+# ------------------- re2 ---------------------
+FetchContent_Declare(
+  re2
+  GIT_REPOSITORY https://github.com/google/re2.git
+  GIT_TAG b84e3ff189980a33d4a0c6fa1201aa0b3b8bab4a
+)
+FetchContent_MakeAvailable(re2)
 
 # ==================================================
 # = Executable Definitions
 # ==================================================
 add_executable(${PROJECT_NAME}
   src/main.cc
+  src/bpe.h
+  src/bpe.cc
 )
-target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}")
+target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}" re2::re2)
 
 # ==================================================
 # = Apple Specific Configuration
@@ -60,9 +77,3 @@ if(APPLE)
   set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH "${LIBOMP_PREFIX}/lib;${TORCH_INSTALL_PREFIX}/lib")
 endif()
 
-# ==================================================
-# = Compilation Settings
-# ==================================================
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
