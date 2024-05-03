@@ -12,18 +12,15 @@ class TokenizerBPE : public testing::Test {
     const char *assets_root = std::getenv("ASSETS_ROOT");
     ASSERT_TRUE(assets_root != nullptr);
 
-    std::stringstream vocab_path, merges_path;
-    vocab_path << assets_root << "/vocab.txt";
-    merges_path << assets_root << "/merges.txt";
-
-    std::fstream vocab_file(vocab_path.str(), std::ios::in);
-    std::fstream merges_file(merges_path.str(), std::ios::in);
+    std::stringstream config_path;
+    config_path << assets_root << "/tokenizer.json";
+    std::ifstream config_file(config_path.str(), std::ios::in);
 
     auto re = std::make_unique<RE2>(
         "('s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| "
         "?[^\\s\\p{L}\\p{N}]+|\\s+\\(?!\\S\\)|\\s+)");
 
-    this->bpe_instance = std::make_unique<bpe::BPE>(vocab_file, merges_file, std::move(re));
+    this->bpe_instance = std::make_unique<bpe::BPE>(config_file, std::move(re));
   }
 
   void TearDown() override {}
@@ -44,25 +41,17 @@ TEST_F(TokenizerBPE, RegexCompilation) {
 }
 
 TEST_F(TokenizerBPE, BytesToUnicodeConversion) {
-  std::unordered_map<uint8_t, wchar_t> b2u;
-  std::unordered_map<wchar_t, uint8_t> u2b;
-  bpe_instance->bytes_to_unicode(&b2u, &u2b);
-
   // Validate the size of the maps
-  EXPECT_EQ(b2u.size(), 256);
-  EXPECT_EQ(u2b.size(), 256);
+  EXPECT_EQ(bpe_instance->b2u.size(), 256);
+  EXPECT_EQ(bpe_instance->u2b.size(), 256);
 
   // Check specific mappings to ensure they are correct
-  EXPECT_EQ(b2u[0], 0x100);  // Assuming the mapping starts at 0x100 for 0
-  EXPECT_EQ(u2b[0x100], 0);  // Reverse mapping check
+  EXPECT_EQ(bpe_instance->b2u[0], 0x100);  // Assuming the mapping starts at 0x100 for 0
+  EXPECT_EQ(bpe_instance->u2b[0x100], 0);  // Reverse mapping check
 }
 
 TEST_F(TokenizerBPE, ByteEncodeToken) {
-  std::unordered_map<uint8_t, wchar_t> b2u;
-  bpe_instance->bytes_to_unicode(&b2u, NULL);
-  std::wstring result;
-  bpe_instance->byte_encode_token(" very", b2u, &result);
-
+  std::wstring result = bpe_instance->byte_encode_token(" very");
   EXPECT_EQ(bpe_instance->wstring_to_utf8(result), "Ġvery");
 }
 
@@ -94,12 +83,11 @@ TEST_F(TokenizerBPE, LoadMergeRules) {
   auto
       iter = bpe_instance->bpe_ranks.find({bpe_instance->utf8_to_wstring("Ġg"), bpe_instance->utf8_to_wstring("azed")});
   EXPECT_NE(iter, bpe_instance->bpe_ranks.end());
-  EXPECT_EQ(iter->second, 49999);
+  EXPECT_EQ(iter->second, 49998);
 }
 
 TEST_F(TokenizerBPE, GetPairs) {
-  std::vector<std::pair<std::wstring, std::wstring>> pairs;
-  bpe_instance->get_pairs(bpe_instance->utf8_to_wstring("very"), &pairs);
+  auto pairs = bpe_instance->get_pairs(bpe_instance->utf8_to_wstring("very"));
 
   EXPECT_EQ(pairs.size(), 3);
   EXPECT_EQ(bpe_instance->wstring_to_utf8(pairs[1].first), "e");
@@ -109,16 +97,12 @@ TEST_F(TokenizerBPE, GetPairs) {
 TEST_F(TokenizerBPE, BPEAlgorithm) {
   EXPECT_EQ(bpe_instance->bpe_ranks.size(), 50000);
 
-  std::vector<std::wstring> result;
-  bpe_instance->bpe(bpe_instance->utf8_to_wstring("annoyingly"), &result);
+  std::vector<std::wstring> result = bpe_instance->bpe(bpe_instance->utf8_to_wstring("annoyingly"));
   EXPECT_EQ(result, std::vector<std::wstring>({L"ann", L"oy", L"ingly"}));
 }
 
 TEST_F(TokenizerBPE, Tokenize) {
   EXPECT_TRUE(bpe_instance->re->ok());  // compiled; if not, see re.error();
-
-  std::unordered_map<uint8_t, wchar_t> b2u;
-  bpe_instance->bytes_to_unicode(&b2u, nullptr);
 
   std::vector<std::string> candidates = {
       "this is <|endoftext|> else<|endoftext|>",
@@ -134,26 +118,20 @@ TEST_F(TokenizerBPE, Tokenize) {
   };
 
   for (const auto &s : candidates) {
-    std::vector<std::string> result;
-    bpe_instance->tokenize(s, b2u, &result);
+    std::vector<std::string> result = bpe_instance->tokenize(s);
     _print_string_vec(result);
   }
 }
 
 TEST_F(TokenizerBPE, EncodeDecode) {
-  std::unordered_map<uint8_t, wchar_t> b2u;
-  std::unordered_map<wchar_t, uint8_t> u2b;
-  bpe_instance->bytes_to_unicode(&b2u, &u2b);
-
   std::vector<std::string> candidates = {
       "this is <|endoftext|> else<|endoftext|>",
       "<|endoftext|> else<|endoftext|>", "this is <|endoftext|> else",
       "this is <|endoftext|>else", "this is else"};
   for (auto s : candidates) {
-    std::vector<int> ids;
-    bpe_instance->encode(s, b2u, &ids);
+    std::vector<int> ids = bpe_instance->encode(s);
     EXPECT_GT(ids.size(), 0);
-    EXPECT_EQ(bpe_instance->decode(ids, u2b), s);
+    EXPECT_EQ(bpe_instance->decode(ids), s);
   }
 }
 }

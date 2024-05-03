@@ -6,6 +6,7 @@
 
 #include <re2/re2.h>
 #include <re2/stringpiece.h>
+#include <nlohmann/json.hpp>
 
 #ifdef UNIT_TEST
 #include <gtest/gtest_prod.h>
@@ -34,48 +35,40 @@ class BPE final {
   std::unique_ptr<RE2> re;
   std::unordered_map<std::string, int> t2i;  // token to id
   std::unordered_map<int, std::string> i2t;  // id to token
+  std::unordered_map<uint8_t, wchar_t> b2u;
+  std::unordered_map<wchar_t, uint8_t> u2b;
 
  public:
-  BPE(std::fstream &vocab_file, std::fstream &merges_file, std::unique_ptr<RE2> re);
+  BPE(std::istream &config_file, std::unique_ptr<RE2> re);
 
-  void encode(const std::string &text,
-              std::unordered_map<uint8_t, wchar_t> &b2u,
-              std::vector<int> *ids) const;
+  [[nodiscard]] std::vector<int> encode(const std::string &text) const;
 
-  std::string decode(const std::vector<int> &ids,
-                     const std::unordered_map<wchar_t, uint8_t> &u2b) const;
+  [[nodiscard]] std::string decode(const std::vector<int> &ids) const;
 
  private:
-  void load_vocab(std::istream &ins);
 
-  void load_merge_rules(std::istream &ins);
+  void load_vocab(const nlohmann::json &ins);
 
-  std::wstring utf8_to_wstring(const std::string &str) const;
+  void load_merge_rules(const nlohmann::json &ins);
 
-  std::string wstring_to_utf8(const std::wstring &str) const;
+  void load_bytes_to_unicode();
 
-  std::string utf8(wchar_t c) const;
+  [[nodiscard]] static std::wstring utf8_to_wstring(const std::string &str);
 
-  void tokenize(const std::string &text,
-                const std::unordered_map<uint8_t, wchar_t> &b2u,
-                std::vector<std::string> *result) const;
+  [[nodiscard]] static std::string utf8(const wchar_t c);
 
-  void _tokenize(const std::string &text,
-                 const std::unordered_map<uint8_t, wchar_t> &b2u,
-                 std::vector<std::string> *result) const;
+  [[nodiscard]] static std::string wstring_to_utf8(const std::wstring &str);
+
+  [[nodiscard]] std::vector<std::string> tokenize(const std::string &text) const;
+
+  void _tokenize(const std::string &text, std::vector<std::string> &result) const;
 
   // Given a token as a UTF8 string, encode each byte into an wchar_t
-  void byte_encode_token(const std::string &token,
-                         const std::unordered_map<uint8_t, wchar_t> &b2u,
-                         std::wstring *result) const;
+  [[nodiscard]] std::wstring byte_encode_token(const std::string &token) const;
 
-  void bpe(const std::wstring &token, std::vector<std::wstring> *result) const;
+  [[nodiscard]] std::vector<std::wstring> bpe(const std::wstring &token) const;
 
-  static void get_pairs(const std::wstring &word,
-                        std::vector<std::pair<std::wstring, std::wstring>> *pairs);
-
-  static void bytes_to_unicode(std::unordered_map<uint8_t, wchar_t> *b2u,
-                               std::unordered_map<wchar_t, uint8_t> *u2b);
+  static std::vector<std::pair<std::wstring, std::wstring>> get_pairs(const std::wstring &word);
 
 #ifdef UNIT_TEST
   FRIEND_TEST(TokenizerBPE, RegexCompilation);

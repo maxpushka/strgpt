@@ -45,6 +45,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(re2)
 
+# ------------------- JSON ---------------------
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
+file(DOWNLOAD # Download tokenizer config
+     "https://huggingface.co/gpt2/raw/main/tokenizer.json"
+     "${CMAKE_CURRENT_BINARY_DIR}/tokenizer.json"
+     TIMEOUT 60
+     STATUS download_status)
+list(GET download_status 0 status_code)# Check if the download was successful
+if(NOT status_code EQUAL 0)
+    message(FATAL_ERROR "Failed to download file: ${download_status}")
+endif()
+
 # ------------------- Google Test ---------------------
 FetchContent_Declare(
   googletest
@@ -62,7 +76,7 @@ add_executable(${PROJECT_NAME}
   src/bpe.h
   src/bpe.cc
 )
-target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}" re2::re2)
+target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}" re2::re2 nlohmann_json::nlohmann_json)
 
 # ------------------- Tests ---------------------
 enable_testing()
@@ -71,14 +85,27 @@ add_executable(${PROJECT_NAME}_tests
   src/bpe.h
   src/bpe.cc
 )
-target_link_libraries(${PROJECT_NAME}_tests "${TORCH_LIBRARIES}" re2::re2 GTest::gtest_main)
+target_link_libraries(${PROJECT_NAME}_tests GTest::gtest_main "${TORCH_LIBRARIES}" re2::re2 nlohmann_json::nlohmann_json)
 target_compile_definitions(${PROJECT_NAME}_tests PRIVATE UNIT_TEST)
 include(GoogleTest)
 gtest_discover_tests(${PROJECT_NAME}_tests)
 
 # ==================================================
-# = Apple Specific Configuration
+# = Target Configurations
 # ==================================================
+
+# ------------------- Link Time Optimizations ---------------------
+include(CheckIPOSupported)
+check_ipo_supported(RESULT supported OUTPUT error)
+if (supported)
+    message(STATUS "IPO / LTO enabled")
+    set_target_property(${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    set_target_property(${PROJECT_NAME}_tests PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+else ()
+    message(WARNING "IPO / LTO not supported: <${error}>")
+endif ()
+
+# ------------------- Apple Specific Configuration ---------------------
 if(APPLE)
   # Execute process to get the path to libomp
   execute_process(

@@ -12,18 +12,21 @@ int main() {
     return 1;
   }
 
-  std::stringstream vocab_path, merges_path;
-  vocab_path << assets_root << "/vocab.txt";
-  merges_path << assets_root << "/merges.txt";
-
-  std::fstream vocab_file(vocab_path.str(), std::ios::in);
-  std::fstream merges_file(merges_path.str(), std::ios::in);
-
   auto re = std::make_unique<RE2>(
       "('s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| "
       "?[^\\s\\p{L}\\p{N}]+|\\s+\\(?!\\S\\)|\\s+)");
 
-  bpe::BPE tokenizer{vocab_file, merges_file, std::move(re)};
+  std::stringstream path;
+  path << assets_root << "/tokenizer.json";
+  std::ifstream config{path.str(), std::ifstream::in};
+  bpe::BPE tok{config, std::move(re)};
+
+  std::string text{"Hello, world!"};
+  std::vector<int> ids = tok.encode(text);
+  for (const auto &id : ids) {
+    std::cout << id << " ";
+  }
+  std::cout << std::endl;
 
   torch::Tensor tensor = torch::rand({2, 3});
   std::cout << tensor << std::endl;
