@@ -75,6 +75,7 @@ add_executable(${PROJECT_NAME}
   src/main.cc
   src/bpe.h
   src/bpe.cc
+  src/model.cc
 )
 target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}" re2::re2 nlohmann_json::nlohmann_json)
 
