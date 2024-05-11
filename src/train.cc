@@ -10,9 +10,10 @@
 #include "mapped_file.h"
 #include "model.h"
 
+namespace train {
 // Save a checkpoint of the model
 void save_checkpoint(const std::string &path,
-                     std::shared_ptr<GPT> model,
+                     std::shared_ptr<model::GPT> model,
                      std::shared_ptr<torch::optim::Optimizer> optimizer,
                      int iteration) {
   torch::save(model, path + "/model_checkpoint_" + std::to_string(iteration) + ".pt");
@@ -64,7 +65,7 @@ std::tuple<std::string, std::string, int> find_latest_matching_checkpoints(const
 }
 
 // Load the latest checkpoint of the model and optimizer
-size_t load_checkpoint(const std::string& path, std::shared_ptr<GPT> model, std::shared_ptr<torch::optim::Optimizer> optimizer) {
+size_t load_checkpoint(const std::string& path, std::shared_ptr<model::GPT> model, std::shared_ptr<torch::optim::Optimizer> optimizer) {
   auto [latest_model_path, latest_optimizer_path, latest_version] = find_latest_matching_checkpoints(path);
   if (latest_model_path.empty() || latest_optimizer_path.empty()) {
     std::cerr << "No checkpoints found in the directory: " << path << std::endl;
@@ -145,7 +146,7 @@ void adjust_learning_rate(std::shared_ptr<torch::optim::Optimizer> optimizer, in
 }
 
 // The modified training function with checkpointing and learning rate adjustment
-void train_model_with_scheduler_and_checkpointing(std::shared_ptr<GPT> model,
+void train_model_with_scheduler_and_checkpointing(std::shared_ptr<model::GPT> model,
                                                   std::shared_ptr<torch::optim::Optimizer> optimizer,
                                                   const Config &cfg,
                                                   size_t prev_iters_count,
@@ -184,4 +185,4 @@ void train_model_with_scheduler_and_checkpointing(std::shared_ptr<GPT> model,
     }
   }
 }
-
+}

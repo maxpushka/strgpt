@@ -8,7 +8,7 @@
 #include "train.h"
 
 int main() {
-  Config config;
+  train::Config config;
 
   // Initialize the environment based on the provided configuration
   std::filesystem::create_directories(config.out_dir);
@@ -17,7 +17,7 @@ int main() {
   std::cout << "Configuration and environment setup complete." << std::endl;
 
   // Initialize the model
-  auto model = std::make_shared<GPT>(config.model);
+  auto model = std::make_shared<model::GPT>(config.model);
   model->to(device);
 
   // Initialize the optimizer
@@ -29,17 +29,17 @@ int main() {
   // Load weights from a checkpoint
   size_t previous_iterations_count = 0;
   if (config.init_from == "resume") {
-    previous_iterations_count = load_checkpoint(config.out_dir, model, optimizer);
+    previous_iterations_count = train::load_checkpoint(config.out_dir, model, optimizer);
   }
   std::cout << "Model initialized." << std::endl;
 
   // Run training loop
   std::cout << "Starting training loop." << std::endl;
   auto start = std::chrono::high_resolution_clock::now();
-  train_model_with_scheduler_and_checkpointing(model, optimizer, config, previous_iterations_count, device);
+  train::train_model_with_scheduler_and_checkpointing(model, optimizer, config, previous_iterations_count, device);
   auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double> diff = end - start;
-  std::cout << "Training completed in " << diff.count() << " s" << std::endl;
+  auto duration = duration_cast<std::chrono::seconds>(end - start).count();
+  std::cout << "Training completed in " << duration << "s" << std::endl;
 
   return 0;
 }

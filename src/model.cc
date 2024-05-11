@@ -1,6 +1,7 @@
 #include "model.h"
 #include <limits>
 
+namespace model {
 LayerNormImpl::LayerNormImpl(int64_t ndim, bool bias) : use_bias(bias) {
   weight = register_parameter("weight", torch::ones({ndim}));
   if (use_bias) {
@@ -90,7 +91,7 @@ torch::Tensor BlockImpl::forward(torch::Tensor x) {
   return x;
 }
 
-GPT::GPT(const GPTConfig &config)
+GPT::GPT(const Config &config)
     : wte(torch::nn::Embedding(config.vocab_size, config.n_embd)),
       wpe(torch::nn::Embedding(config.block_size, config.n_embd)),
       drop(torch::nn::Dropout(config.dropout)),
@@ -129,4 +130,5 @@ std::tuple<torch::Tensor, torch::Tensor> GPT::forward(torch::Tensor idx, torch::
   } else {
     return {logits, {}};
   }
+}
 }

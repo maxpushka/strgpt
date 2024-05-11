@@ -5,6 +5,7 @@
 #include <cmath>
 #include <vector>
 
+namespace model {
 class LayerNormImpl : public torch::nn::Module {
   torch::Tensor weight;
   torch::Tensor bias;
@@ -65,7 +66,7 @@ class BlockImpl : public torch::nn::Module {
 
 TORCH_MODULE(Block); // Wrapper to create shared_ptr<BlockImpl>
 
-struct GPTConfig {
+struct Config {
   int64_t vocab_size;
   int64_t block_size;
   int64_t n_layer;
@@ -85,7 +86,8 @@ class GPT : public torch::nn::Module {
   torch::nn::Linear lm_head;
 
  public:
-  GPT(const GPTConfig &config);
+  GPT(const Config &config);
 
   std::tuple<torch::Tensor, torch::Tensor> forward(torch::Tensor idx, torch::Tensor targets = {});
 };
+}

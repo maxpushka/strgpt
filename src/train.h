@@ -4,6 +4,7 @@
 
 #include "model.h"
 
+namespace train {
 // Configuration struct to hold all training parameters
 struct Config {
   std::string data_dir = "/home/maxpushka/dev/github.com/maxpushka/strgpt/data/shakespeare_char";
@@ -18,7 +19,7 @@ struct Config {
   std::string dataset = "openwebtext";
   int gradient_accumulation_steps = 40; // 5 * 8
   int batch_size = 32;
-  GPTConfig model{
+  model::Config model{
       .vocab_size = 50257,
       .block_size = 256, // context of up to 256 previous characters
       .n_layer = 6,
@@ -43,10 +44,11 @@ struct Config {
   bool compile = true;
 };
 
-size_t load_checkpoint(const std::string& path, std::shared_ptr<GPT> model, std::shared_ptr<torch::optim::Optimizer> optimizer);
+size_t load_checkpoint(const std::string& path, std::shared_ptr<model::GPT> model, std::shared_ptr<torch::optim::Optimizer> optimizer);
 
-void train_model_with_scheduler_and_checkpointing(std::shared_ptr<GPT> model,
+void train_model_with_scheduler_and_checkpointing(std::shared_ptr<model::GPT> model,
                                                   std::shared_ptr<torch::optim::Optimizer> optimizer,
                                                   const Config &cfg,
                                                   size_t prev_iters_count,
                                                   torch::Device device);
+}
