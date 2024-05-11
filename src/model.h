@@ -75,7 +75,7 @@ struct GPTConfig {
   bool bias;
 };
 
-class GPTImpl : public torch::nn::Module {
+class GPT : public torch::nn::Module {
  private:
   torch::nn::Embedding wte;
   torch::nn::Embedding wpe;
@@ -85,7 +85,7 @@ class GPTImpl : public torch::nn::Module {
   torch::nn::Linear lm_head;
 
  public:
-  GPTImpl(const GPTConfig &config);
+  GPT(const GPTConfig &config);
 
   std::tuple<torch::Tensor, torch::Tensor> forward(torch::Tensor idx, torch::Tensor targets = {});
 };

@@ -24,14 +24,17 @@ CausalSelfAttentionImpl::CausalSelfAttentionImpl(int64_t n_embd, int64_t n_head,
       attn_dropout(register_module("attn_dropout", torch::nn::Dropout(dropout))),
       resid_dropout(register_module("resid_dropout", torch::nn::Dropout(dropout))),
       n_head(n_head), n_embd(n_embd) {
-  // Initialize bias tensor for masked attention
-  attn_mask = register_buffer("attn_mask", torch::tril(torch::ones({n_head, n_head})).unsqueeze(0));
+  // Initialize bias tensor for masked attention; should be 1 x 1 x T x T where T is the sequence length.
+  // T will be dynamically set during the forward pass.
 }
 
 torch::Tensor CausalSelfAttentionImpl::forward(torch::Tensor x) {
   auto B = x.size(0); // Batch size
   auto T = x.size(1); // Sequence length
   auto C = x.size(2); // Embedding dimension
+
+  // Ensure that the attention mask is correctly sized each forward pass
+  attn_mask = torch::tril(torch::ones({1, 1, T, T}, x.options())).contiguous();
 
   // Split the concatenated tensor to get query, key and values
   auto tensors = c_attn(x).chunk(3, 2);
@@ -87,7 +90,7 @@ torch::Tensor BlockImpl::forward(torch::Tensor x) {
   return x;
 }
 
-GPTImpl::GPTImpl(const GPTConfig &config)
+GPT::GPT(const GPTConfig &config)
     : wte(torch::nn::Embedding(config.vocab_size, config.n_embd)),
       wpe(torch::nn::Embedding(config.block_size, config.n_embd)),
       drop(torch::nn::Dropout(config.dropout)),
@@ -106,7 +109,7 @@ GPTImpl::GPTImpl(const GPTConfig &config)
   lm_head->weight = wte->weight;
 }
 
-std::tuple<torch::Tensor, torch::Tensor> GPTImpl::forward(torch::Tensor idx, torch::Tensor targets) {
+std::tuple<torch::Tensor, torch::Tensor> GPT::forward(torch::Tensor idx, torch::Tensor targets) {
   auto device = idx.device();
   auto pos = torch::arange(0, idx.size(1), device = device);
   auto tok_emb = wte(idx);
