@@ -26,7 +26,11 @@ include(FetchContent)
 if(APPLE)
   set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.3.0.zip")
 else()
+  # CPU-only version
   set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.3.0%2Bcpu.zip")
+
+  # CUDA version
+  # set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.3.0%2Bcu121.zip")
 endif()
 
 FetchContent_Declare(libtorch URL ${LIBTORCH_URL})
