@@ -17,10 +17,10 @@ struct Config {
   int eval_iters = 200;
   bool eval_only = false;
   bool always_save_checkpoint = true;
-  std::string init_from = "scratch";
+  std::string init_from = "scratch"; // 'scratch' or 'resume' or 'gpt2*'
   std::string dataset = "openwebtext";
   int gradient_accumulation_steps = 40; // 5 * 8
-  int batch_size = 64;
+  int batch_size = 32;
   GPTConfig model{
       .vocab_size = 50257,
       .block_size = 256, // context of up to 256 previous characters
@@ -166,12 +166,12 @@ void train_model_with_scheduler_and_checkpointing(std::shared_ptr<GPT> model,
 }
 
 int main() {
-  Config config; // Create a configuration instance with default values
+  Config config;
 
   // Initialize the environment based on the provided configuration
   std::filesystem::create_directories(config.out_dir);
   torch::manual_seed(1337);
-  torch::Device device{torch::kCPU};
+  torch::Device device{config.device};
   std::cout << "Configuration and environment setup complete." << std::endl;
 
   // Initialize the model
@@ -179,8 +179,11 @@ int main() {
   model->to(device);
   std::cout << "Model initialized." << std::endl;
 
-  std::cout << "Starting training loop." << std::endl;
   auto optimizer = configure_optimizer(model, config);
+  std::cout << "Optimizer initialized." << std::endl;
+
+  // Run training loop
+  std::cout << "Starting training loop." << std::endl;
   auto start = std::chrono::high_resolution_clock::now();
   train_model_with_scheduler_and_checkpointing(model, optimizer, config, device);
   auto end = std::chrono::high_resolution_clock::now();

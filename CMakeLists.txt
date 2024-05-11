@@ -14,7 +14,7 @@ endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 
 # ==================================================
 # = Dependencies Setup
@@ -22,15 +22,18 @@ set(CMAKE_CXX_STANDARD 23)
 include(FetchContent)
 
 # ------------------- libtorch ---------------------
-# Check if building on MacOS and adjust the URL accordingly
 if(APPLE)
+  message(STATUS "Downloading libtorch for MacOS")
   set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.3.0.zip")
-else()
-  # CPU-only version
-  set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.3.0%2Bcpu.zip")
+elseif(true)
+  set(TORCH_CUDA_ARCH_LIST "8.0 8.6 8.9 9.0")
+  set(CMAKE_CUDA_FLAGS "-allow-unsupported-compiler")
 
-  # CUDA version
-  # set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.3.0%2Bcu121.zip")
+  message(STATUS "Downloading libtorch with CUDA support")
+  set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.3.0%2Bcu121.zip")
+else()
+  message(STATUS "Downloading CPU-only version of libtorch")
+  set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.3.0%2Bcpu.zip")
 endif()
 
 FetchContent_Declare(libtorch URL ${LIBTORCH_URL})
