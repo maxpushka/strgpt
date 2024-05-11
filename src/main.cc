@@ -3,6 +3,10 @@
 #include <chrono>
 #include <filesystem>
 #include <random>
+#include <string>
+#include <filesystem>
+#include <regex>
+#include <memory>
 
 #include "model.h"
 #include "mapped_file.h"
@@ -17,7 +21,7 @@ struct Config {
   int eval_iters = 200;
   bool eval_only = false;
   bool always_save_checkpoint = true;
-  std::string init_from = "scratch"; // 'scratch' or 'resume' or 'gpt2*'
+  std::string init_from = "resume"; // 'scratch' or 'resume' or 'gpt2*'
   std::string dataset = "openwebtext";
   int gradient_accumulation_steps = 40; // 5 * 8
   int batch_size = 32;
@@ -112,10 +116,63 @@ void save_checkpoint(const std::string &path,
   torch::save(*optimizer, path + "/optimizer_checkpoint_" + std::to_string(iteration) + ".pt");
 }
 
-// Load a checkpoint of the model
-void load_checkpoint(const std::string &path, std::shared_ptr<GPT> model, torch::optim::Optimizer *optimizer) {
-  torch::load(model, path + "/model_checkpoint.pt");
-  torch::load(*optimizer, path + "/optimizer_checkpoint.pt");
+// Function to find the latest checkpoint files in the given directory with matching versions
+std::tuple<std::string, std::string, int> find_latest_matching_checkpoints(const std::string& directory) {
+    std::regex model_pattern("model_checkpoint_(\\d+)\\.pt");
+    std::regex optimizer_pattern("optimizer_checkpoint_(\\d+)\\.pt");
+    std::map<int, std::string> model_files;
+    std::map<int, std::string> optimizer_files;
+
+    int max_version = -1;
+    std::string latest_model_path;
+    std::string latest_optimizer_path;
+
+    namespace fs = std::filesystem;
+    for (const auto& entry : fs::directory_iterator(directory)) {
+        std::smatch matches;
+        const std::string filename = entry.path().filename().string();
+
+        if (std::regex_search(filename, matches, model_pattern)) {
+            int version = std::stoi(matches[1].str());
+            model_files[version] = entry.path().string();
+        } else if (std::regex_search(filename, matches, optimizer_pattern)) {
+            int version = std::stoi(matches[1].str());
+            optimizer_files[version] = entry.path().string();
+        }
+    }
+
+    // Check for the highest version that exists in both maps
+    for (const auto& [version, model_path] : model_files) {
+        auto opt_it = optimizer_files.find(version);
+        if (opt_it != optimizer_files.end()) {
+            if (version > max_version) {
+                max_version = version;
+                latest_model_path = model_path;
+                latest_optimizer_path = opt_it->second;
+            }
+        }
+    }
+
+    if (max_version != -1) {
+        return {latest_model_path, latest_optimizer_path, max_version};
+    } else {
+        return {"", "", -1};
+    }
+}
+
+// Load the latest checkpoint of the model and optimizer
+size_t load_checkpoint(const std::string& path, std::shared_ptr<GPT> model, std::shared_ptr<torch::optim::Optimizer> optimizer) {
+  auto [latest_model_path, latest_optimizer_path, latest_version] = find_latest_matching_checkpoints(path);
+  if (latest_model_path.empty() || latest_optimizer_path.empty()) {
+    std::cerr << "No checkpoints found in the directory: " << path << std::endl;
+    return 0;
+  }
+
+  torch::load(model, latest_model_path);
+  torch::load(*optimizer, latest_optimizer_path);
+  std::cout << "Loaded model from " << latest_model_path << std::endl;
+  std::cout << "Loaded optimizer from " << latest_optimizer_path << std::endl;
+  return latest_version;
 }
 
 // A simple learning rate scheduler function
@@ -139,8 +196,12 @@ void adjust_learning_rate(std::shared_ptr<torch::optim::Optimizer> optimizer, in
 void train_model_with_scheduler_and_checkpointing(std::shared_ptr<GPT> model,
                                                   std::shared_ptr<torch::optim::Optimizer> optimizer,
                                                   const Config &cfg,
+                                                  size_t previous_iterations_count,
                                                   torch::Device device) {
-  for (int iter = 0; iter < cfg.max_iters; ++iter) {
+  using clock = std::chrono::high_resolution_clock;
+  for (size_t session_iter = 0; session_iter < cfg.max_iters; ++session_iter) {
+    auto start = clock::now();
+
     auto [X, Y] = get_batch(cfg.data_dir, "train", cfg.batch_size, cfg.model.block_size, device);
     model->train();
     optimizer->zero_grad();
@@ -148,18 +209,25 @@ void train_model_with_scheduler_and_checkpointing(std::shared_ptr<GPT> model,
     loss.backward();
     optimizer->step();
 
+    size_t iter = session_iter+previous_iterations_count;
     adjust_learning_rate(optimizer, iter, cfg);
 
     if (iter % cfg.log_interval == 0) {
-      std::cout << "Iteration " << iter << ": loss=" << loss.item<float>() << ", lr="
-                << optimizer->param_groups().front().options().get_lr() << std::endl;
+      auto duration = duration_cast<std::chrono::milliseconds>(clock::now() - start).count();
+      std::cout << "Iteration " << iter << ": loss=" << loss.item<float>()
+                << ", lr=" << optimizer->param_groups().front().options().get_lr()
+                << ", time=" << duration << "ms" << std::endl;
     }
 
-    if ((iter % cfg.eval_interval == 0) || (iter == cfg.max_iters - 1)) {
+    if ((iter % cfg.eval_interval == 0) || (session_iter == cfg.max_iters - 1)) {
+      auto eval_start = clock::now();
       model->eval();
       auto [eval_X, eval_Y] = get_batch(cfg.data_dir, "val", cfg.batch_size, cfg.model.block_size, device);
       auto [eval_logits, eval_loss] = model->forward(eval_X, eval_Y);
-      std::cout << "Eval Iteration " << iter << ": eval loss=" << eval_loss.item<float>() << std::endl;
+      auto eval_duration = duration_cast<std::chrono::milliseconds>(clock::now() - eval_start).count();
+
+      std::cout << "Eval Iteration " << iter << ": loss=" << eval_loss.item<float>()
+                << ", time=" << eval_duration << "ms" << std::endl;
       save_checkpoint(cfg.out_dir, model, optimizer, iter);
     }
   }
@@ -177,15 +245,18 @@ int main() {
   // Initialize the model
   auto model = std::make_shared<GPT>(config.model);
   model->to(device);
-  std::cout << "Model initialized." << std::endl;
-
   auto optimizer = configure_optimizer(model, config);
-  std::cout << "Optimizer initialized." << std::endl;
+
+  size_t previous_iterations_count = 0;
+  if (config.init_from == "resume") {
+    previous_iterations_count = load_checkpoint(config.out_dir, model, optimizer);
+  }
+  std::cout << "Model initialized." << std::endl;
 
   // Run training loop
   std::cout << "Starting training loop." << std::endl;
   auto start = std::chrono::high_resolution_clock::now();
-  train_model_with_scheduler_and_checkpointing(model, optimizer, config, device);
+  train_model_with_scheduler_and_checkpointing(model, optimizer, config, previous_iterations_count, device);
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> diff = end - start;
   std::cout << "Training completed in " << diff.count() << " s" << std::endl;
