@@ -8,8 +8,8 @@
 namespace train {
 // Configuration struct to hold all training parameters
 struct Config {
-  std::string data_dir = "/home/maxpushka/dev/github.com/maxpushka/strgpt/data/shakespeare_char";
-  std::string out_dir = "/home/maxpushka/dev/github.com/maxpushka/strgpt/out";
+  std::string data_dir;
+  std::string out_dir;
 
   int eval_interval = 2000;
   int log_interval = 1;

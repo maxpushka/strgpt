@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <limits>
 #include <torch/torch.h>
 #include <iostream>
 #include <chrono>
@@ -152,9 +153,10 @@ void train_model_with_scheduler_and_checkpointing(std::shared_ptr<model::GPT> mo
                                                   size_t prev_iters_count,
                                                   torch::Device device) {
   using clock = std::chrono::high_resolution_clock;
+  auto best_eval = std::numeric_limits<float>::max();
+
   for (size_t session_iter = 0; session_iter < cfg.max_iters; ++session_iter) {
     auto start = clock::now();
-
     auto [X, Y] = get_batch(cfg.data_dir, "train", cfg.batch_size, cfg.model.block_size, device);
     model->train();
     optimizer->zero_grad();
@@ -179,9 +181,13 @@ void train_model_with_scheduler_and_checkpointing(std::shared_ptr<model::GPT> mo
       auto [eval_logits, eval_loss] = model->forward(eval_X, eval_Y);
       auto eval_duration = duration_cast<std::chrono::milliseconds>(clock::now() - eval_start).count();
 
-      std::cout << "Eval Iteration " << iter << ": loss=" << eval_loss.item<float>()
+      auto eval_loss_float = eval_loss.item<float>();
+      std::cout << "Eval Iteration " << iter << ": loss=" << eval_loss_float
                 << ", time=" << eval_duration << "ms" << std::endl;
-      save_checkpoint(cfg.out_dir, model, optimizer, iter);
+      if (eval_loss_float < best_eval || cfg.always_save_checkpoint) {
+        best_eval = eval_loss_float;
+        save_checkpoint(cfg.out_dir, model, optimizer, iter);
+      }
     }
   }
 }
