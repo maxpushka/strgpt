@@ -8,16 +8,12 @@ LayerNormImpl::LayerNormImpl(int64_t ndim, bool bias) : use_bias(bias) {
   if (use_bias) {
     this->bias = register_parameter("bias", torch::zeros({ndim}));
   } else {
-    this->bias = torch::Tensor(); // Create an empty tensor if bias is not used
+    this->bias = register_parameter("bias", torch::Tensor(), /*requires_grad=*/false);
   }
 }
 
 torch::Tensor LayerNormImpl::forward(torch::Tensor input) {
-  if (use_bias) {
-    return torch::layer_norm(input, {input.size(-1)}, weight, bias, 1e-5);
-  } else {
-    return torch::layer_norm(input, {input.size(-1)}, weight, torch::Tensor(), 1e-5);
-  }
+  return torch::layer_norm(input, {input.size(-1)}, weight, bias, 1e-5);
 }
 
 CausalSelfAttentionImpl::CausalSelfAttentionImpl(int64_t n_embd, int64_t n_head, double dropout, bool bias, int block_size, bool flash)
