@@ -16,15 +16,17 @@ namespace train {
 void save_checkpoint(const std::string &path,
                      std::shared_ptr<model::GPT> model,
                      std::shared_ptr<torch::optim::Optimizer> optimizer,
-                     int iteration) {
-  torch::save(model, path + "/model_checkpoint_" + std::to_string(iteration) + ".pt");
-  torch::save(*optimizer, path + "/optimizer_checkpoint_" + std::to_string(iteration) + ".pt");
+                     int iteration,
+                     double loss) {
+  std::string suffix = "_checkpoint_" + std::to_string(iteration) + "_loss_" + std::to_string(loss) + ".pt";
+  torch::save(model, path + "/model" + suffix);
+  torch::save(*optimizer, path + "/optimizer" + suffix);
 }
 
 // Function to find the latest checkpoint files in the given directory with matching versions
 std::tuple<std::string, std::string, int> find_latest_matching_checkpoints(const std::string& directory) {
-    std::regex model_pattern("model_checkpoint_(\\d+)\\.pt");
-    std::regex optimizer_pattern("optimizer_checkpoint_(\\d+)\\.pt");
+    std::regex model_pattern("model_checkpoint_(\\d+)_loss_\\d+\\.\\d+\\.pt");
+    std::regex optimizer_pattern("optimizer_checkpoint_(\\d+)_loss_\\d+\\.\\d+\\.pt");
     std::map<int, std::string> model_files;
     std::map<int, std::string> optimizer_files;
 
@@ -148,7 +150,7 @@ void train_model_with_scheduler_and_checkpointing(std::shared_ptr<model::GPT> mo
                                                   size_t prev_iters_count,
                                                   torch::Device device) {
   using clock = std::chrono::high_resolution_clock;
-  auto best_eval = std::numeric_limits<float>::max();
+  auto best_loss = std::numeric_limits<float>::max();
 
   // Read the dataset
   MappedFile train_dataset{cfg.data_dir + "/" + "train"+ ".bin"};
@@ -183,9 +185,9 @@ void train_model_with_scheduler_and_checkpointing(std::shared_ptr<model::GPT> mo
       auto eval_loss_float = eval_loss.item<float>();
       std::cout << "Eval Iteration " << iter << ": loss=" << eval_loss_float
                 << ", time=" << eval_duration << "ms" << std::endl;
-      if (eval_loss_float < best_eval || cfg.always_save_checkpoint) {
-        best_eval = eval_loss_float;
-        save_checkpoint(cfg.out_dir, model, optimizer, iter);
+      if (eval_loss_float < best_loss || cfg.always_save_checkpoint) {
+        best_loss = eval_loss_float;
+        save_checkpoint(cfg.out_dir, model, optimizer, iter, best_loss);
       }
     }
   }
