@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <nlohmann/json.hpp>
 
 #include "model.h"
 
@@ -40,8 +41,13 @@ struct Config {
   float min_lr = 6e-5;
   std::string backend = "nccl";
   std::string device = "cuda";
-  std::string dtype = "float16"; // Assume float16 by default
+  std::string dtype = "float16";
   bool compile = true;
+
+  NLOHMANN_DEFINE_TYPE_INTRUSIVE(Config, data_dir, out_dir, eval_interval, log_interval, eval_iters, eval_only,
+                                     always_save_checkpoint, init_from, dataset, gradient_accumulation_steps, batch_size,
+                                     model, learning_rate, max_iters, weight_decay, beta1, beta2, grad_clip, decay_lr,
+                                     warmup_iters, lr_decay_iters, min_lr, backend, device, dtype, compile)
 };
 
 size_t load_checkpoint(const std::string& path, std::shared_ptr<model::GPT> model, std::shared_ptr<torch::optim::Optimizer> optimizer);

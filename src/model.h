@@ -1,9 +1,11 @@
 #pragma once
 
-#include "model.h"
 #include <torch/torch.h>
 #include <cmath>
 #include <vector>
+#include <nlohmann/json.hpp>
+
+#include "model.h"
 
 namespace model {
 class LayerNormImpl : public torch::nn::Module {
@@ -74,6 +76,8 @@ struct Config {
   int64_t n_embd;
   double dropout;
   bool bias;
+
+  NLOHMANN_DEFINE_TYPE_INTRUSIVE(Config, vocab_size, block_size, n_layer, n_head, n_embd, dropout, bias)
 };
 
 class GPT : public torch::nn::Module {
