@@ -1,4 +1,12 @@
-build
+# Editors
 .cache
 .vscode
+.idea
+
+# Build cache
+build
 cmake-build-debug
+cmake-build-release
+
+# Training cache
+out

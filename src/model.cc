@@ -1,5 +1,6 @@
 #include "model.h"
 #include <limits>
+#include <cassert>
 
 namespace model {
 LayerNormImpl::LayerNormImpl(int64_t ndim, bool bias) : use_bias(bias) {
@@ -19,50 +20,57 @@ torch::Tensor LayerNormImpl::forward(torch::Tensor input) {
   }
 }
 
-CausalSelfAttentionImpl::CausalSelfAttentionImpl(int64_t n_embd, int64_t n_head, double dropout, bool bias)
-    : c_attn(register_module("c_attn", torch::nn::Linear(torch::nn::LinearOptions(n_embd, 3 * n_embd).bias(bias)))),
-      c_proj(register_module("c_proj", torch::nn::Linear(torch::nn::LinearOptions(n_embd, n_embd).bias(bias)))),
-      attn_dropout(register_module("attn_dropout", torch::nn::Dropout(dropout))),
-      resid_dropout(register_module("resid_dropout", torch::nn::Dropout(dropout))),
-      n_head(n_head), n_embd(n_embd) {
-  // Initialize bias tensor for masked attention; should be 1 x 1 x T x T where T is the sequence length.
-  // T will be dynamically set during the forward pass.
+CausalSelfAttentionImpl::CausalSelfAttentionImpl(int64_t n_embd, int64_t n_head, double dropout, bool bias, int block_size, bool flash)
+: c_attn(register_module("c_attn", torch::nn::Linear(torch::nn::LinearOptions(n_embd, 3 * n_embd).bias(bias)))), // key, query, value projections for all heads, but in a batch
+  c_proj(register_module("c_proj", torch::nn::Linear(torch::nn::LinearOptions(n_embd, n_embd).bias(bias)))), // output projection
+  attn_dropout(dropout), // regularization
+  resid_dropout(dropout), // regularization
+  n_head(n_head),
+  n_embd(n_embd),
+  dropout(dropout),
+  flash(flash) {
+    assert(n_embd % n_head == 0);
+    if (!flash) {
+      std::cout << "WARNING: using slow attention." << std::endl;
+      // causal mask to ensure that attention is only applied to the left in the input sequence
+      this->bias = register_buffer("bias", torch::tril(torch::ones({block_size, block_size}))
+                                        .view({1, 1, block_size, block_size}));
+   }
 }
+
 
 torch::Tensor CausalSelfAttentionImpl::forward(torch::Tensor x) {
   auto B = x.size(0); // Batch size
   auto T = x.size(1); // Sequence length
   auto C = x.size(2); // Embedding dimension
 
-  // Ensure that the attention mask is correctly sized each forward pass
-  attn_mask = torch::tril(torch::ones({1, 1, T, T}, x.options())).contiguous();
-
-  // Split the concatenated tensor to get query, key and values
+  // calculate query, key, values for all heads in batch and move head forward to be the batch dim
   auto tensors = c_attn(x).chunk(3, 2);
-  auto q = tensors[0];
-  auto k = tensors[1];
-  auto v = tensors[2];
+  auto k = tensors[0].view({B, T, n_head, C / n_head}).transpose(1, 2);  // (B, nh, T, hs)
+  auto q = tensors[1].view({B, T, n_head, C / n_head}).transpose(1, 2);  // (B, nh, T, hs)
+  auto v = tensors[2].view({B, T, n_head, C / n_head}).transpose(1, 2);  // (B, nh, T, hs)
 
-  // Reshape and transpose tensors for multi-head attention
-  auto shape = torch::IntArrayRef({B, T, n_head, C / n_head});
-  k = k.view(shape).transpose(1, 2);
-  q = q.view(shape).transpose(1, 2);
-  v = v.view(shape).transpose(1, 2);
+  // causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+  torch::Tensor y;
+  if (flash) {
+    // efficient attention using Flash Attention CUDA kernels
+    double scale = 1.0 / std::sqrt(k.size(-1));
+    double dropout_p = this->is_training() ? this->dropout : 0.0;
+    y = torch::native::scaled_dot_product_attention(q, k, v, std::nullopt, dropout_p, true, scale);
+  } else {
+    // manual implementation of attention
+    auto att = (q.matmul(k.transpose(-2, -1))) * (1.0 / std::sqrt(k.size(-1)));
+    att = att.masked_fill(bias.slice(0, 0, 0, T).slice(1, 0, T) == 0, -std::numeric_limits<float>::infinity());
+    att = torch::softmax(att, -1);
+    att = attn_dropout(att);
+    y = att.matmul(v);  // (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+  }
+  y = y.transpose(1, 2).contiguous().view({B, T, C});  // re-assemble all head outputs side by side
 
-  // Compute scaled dot-product attention
-  auto attn = torch::matmul(q, k.transpose(-2, -1)) * (1.0 / std::sqrt(C / n_head));
-  attn = attn.masked_fill(attn_mask.to(attn.device()) == 0, -std::numeric_limits<float>::infinity());
-  attn = torch::softmax(attn, -1);
-  attn = attn_dropout(attn);
-  auto y = torch::matmul(attn, v);
-
-  // Reassemble all head outputs
-  y = y.transpose(1, 2).contiguous().view({B, T, C});
-
-  // Apply output projection and dropout
-  y = resid_dropout(c_proj(y));
-  return y;
+  // output projection
+  return resid_dropout(c_proj(y));
 }
+
 
 MLPImpl::MLPImpl(int64_t n_embd, double dropout, bool bias)
     : c_fc(register_module("c_fc", torch::nn::Linear(torch::nn::LinearOptions(n_embd, 4 * n_embd).bias(bias)))),
@@ -77,10 +85,10 @@ torch::Tensor MLPImpl::forward(torch::Tensor x) {
   return x;
 }
 
-BlockImpl::BlockImpl(int64_t n_embd, int64_t n_head, double dropout, bool bias)
+BlockImpl::BlockImpl(int64_t n_embd, int64_t n_head, double dropout, bool bias, int block_size, bool flash)
     : ln_1(register_module("ln_1", LayerNorm(n_embd, bias))),
       ln_2(register_module("ln_2", LayerNorm(n_embd, bias))),
-      attn(register_module("attn", CausalSelfAttention(n_embd, n_head, dropout, bias))),
+      attn(register_module("attn", CausalSelfAttention(n_embd, n_head, dropout, bias, block_size, flash))),
       mlp(register_module("mlp", MLP(n_embd, dropout, bias))) {}
 
 torch::Tensor BlockImpl::forward(torch::Tensor x) {
@@ -103,7 +111,7 @@ GPT::GPT(const Config &config)
   register_module("ln_f", ln_f);
   register_module("lm_head", lm_head);
   for (int i = 0; i < config.n_layer; ++i) {
-    auto block = Block(config.n_embd, config.n_head, config.dropout, config.bias);
+    auto block = Block(config.n_embd, config.n_head, config.dropout, config.bias, config.block_size, config.flash_attention);
     h.emplace_back(register_module("h_" + std::to_string(i), block));
   }
   // Tie weights
