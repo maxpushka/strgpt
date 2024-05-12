@@ -80,17 +80,12 @@ size_t load_checkpoint(const std::string& path, std::shared_ptr<model::GPT> mode
   return latest_version;
 }
 
-std::pair<torch::Tensor, torch::Tensor> get_batch(const std::string &data_dir,
-                                                  const std::string &split,
+std::pair<torch::Tensor, torch::Tensor> get_batch(const MappedFile& dataset,
                                                   int batch_size,
                                                   int block_size,
                                                   const torch::Device &device) {
-  // Construct file path and create a memory-mapped file
-  std::string file_path = data_dir + "/" + split + ".bin";
-  MappedFile mapped_file(file_path);
-
   // Ensure the file has enough elements
-  size_t num_elements = mapped_file.size() / sizeof(uint16_t);
+  size_t num_elements = dataset.size() / sizeof(uint16_t);
   if (num_elements < static_cast<size_t>(block_size + 1)) {
     throw std::runtime_error("File size is too small for the specified block size.");
   }
@@ -107,7 +102,7 @@ std::pair<torch::Tensor, torch::Tensor> get_batch(const std::string &data_dir,
   targets.reserve(batch_size);
 
   // Access the memory-mapped data
-  const uint16_t *data = reinterpret_cast<const uint16_t *>(mapped_file.data());
+  const uint16_t *data = reinterpret_cast<const uint16_t *>(dataset.data());
 
   // Create tensors for each sample in the batch
   for (int i = 0; i < batch_size; ++i) {
@@ -155,9 +150,13 @@ void train_model_with_scheduler_and_checkpointing(std::shared_ptr<model::GPT> mo
   using clock = std::chrono::high_resolution_clock;
   auto best_eval = std::numeric_limits<float>::max();
 
+  // Read the dataset
+  MappedFile train_dataset{cfg.data_dir + "/" + "train"+ ".bin"};
+  MappedFile eval_dataset{cfg.data_dir + "/" + "val"+ ".bin"};
+
   for (size_t session_iter = 0; session_iter < cfg.max_iters; ++session_iter) {
     auto start = clock::now();
-    auto [X, Y] = get_batch(cfg.data_dir, "train", cfg.batch_size, cfg.model.block_size, device);
+    auto [X, Y] = get_batch(train_dataset, cfg.batch_size, cfg.model.block_size, device);
     model->train();
     optimizer->zero_grad();
     auto [logits, loss] = model->forward(X, Y);
@@ -177,7 +176,7 @@ void train_model_with_scheduler_and_checkpointing(std::shared_ptr<model::GPT> mo
     if ((iter % cfg.eval_interval == 0) || (session_iter == cfg.max_iters - 1)) {
       auto eval_start = clock::now();
       model->eval();
-      auto [eval_X, eval_Y] = get_batch(cfg.data_dir, "val", cfg.batch_size, cfg.model.block_size, device);
+      auto [eval_X, eval_Y] = get_batch(eval_dataset, cfg.batch_size, cfg.model.block_size, device);
       auto [eval_logits, eval_loss] = model->forward(eval_X, eval_Y);
       auto eval_duration = duration_cast<std::chrono::milliseconds>(clock::now() - eval_start).count();
 
