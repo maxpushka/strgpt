@@ -8,6 +8,19 @@
 #include "model.h"
 
 namespace model {
+struct Config {
+  int64_t vocab_size;
+  int64_t block_size;
+  int64_t n_layer;
+  int64_t n_head;
+  int64_t n_embd;
+  double dropout;
+  bool bias;
+  bool flash_attention;
+
+  NLOHMANN_DEFINE_TYPE_INTRUSIVE(Config, vocab_size, block_size, n_layer, n_head, n_embd, dropout, bias, flash_attention)
+};
+
 class LayerNormImpl : public torch::nn::Module {
   torch::Tensor weight;
   torch::Tensor bias;
@@ -34,7 +47,7 @@ class CausalSelfAttentionImpl : public torch::nn::Module {
   torch::Tensor bias;
 
  public:
-  CausalSelfAttentionImpl(int64_t n_embd, int64_t n_head, double dropout, bool bias, int block_size, bool flash);
+  CausalSelfAttentionImpl(const Config &config);
 
   torch::Tensor forward(torch::Tensor x);
 };
@@ -63,25 +76,12 @@ class BlockImpl : public torch::nn::Module {
   MLP mlp; // Multi-layer perceptron module
 
  public:
-  BlockImpl(int64_t n_embd, int64_t n_head, double dropout, bool bias, int block_size, bool flash);
+  BlockImpl(const Config &config);
 
   torch::Tensor forward(torch::Tensor x);
 };
 
 TORCH_MODULE(Block); // Wrapper to create shared_ptr<BlockImpl>
-
-struct Config {
-  int64_t vocab_size;
-  int64_t block_size;
-  int64_t n_layer;
-  int64_t n_head;
-  int64_t n_embd;
-  double dropout;
-  bool bias;
-  bool flash_attention;
-
-  NLOHMANN_DEFINE_TYPE_INTRUSIVE(Config, vocab_size, block_size, n_layer, n_head, n_embd, dropout, bias, flash_attention)
-};
 
 class GPT : public torch::nn::Module {
  private:

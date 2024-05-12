@@ -16,21 +16,21 @@ torch::Tensor LayerNormImpl::forward(torch::Tensor input) {
   return torch::layer_norm(input, {input.size(-1)}, weight, bias, 1e-5);
 }
 
-CausalSelfAttentionImpl::CausalSelfAttentionImpl(int64_t n_embd, int64_t n_head, double dropout, bool bias, int block_size, bool flash)
-: c_attn(register_module("c_attn", torch::nn::Linear(torch::nn::LinearOptions(n_embd, 3 * n_embd).bias(bias)))), // key, query, value projections for all heads, but in a batch
-  c_proj(register_module("c_proj", torch::nn::Linear(torch::nn::LinearOptions(n_embd, n_embd).bias(bias)))), // output projection
-  attn_dropout(dropout), // regularization
-  resid_dropout(dropout), // regularization
-  n_head(n_head),
-  n_embd(n_embd),
-  dropout(dropout),
-  flash(flash) {
-    assert(n_embd % n_head == 0);
+CausalSelfAttentionImpl::CausalSelfAttentionImpl(const Config &config)
+: c_attn(register_module("c_attn", torch::nn::Linear(torch::nn::LinearOptions(config.n_embd, 3 * config.n_embd).bias(config.bias)))), // key, query, value projections for all heads, but in a batch
+  c_proj(register_module("c_proj", torch::nn::Linear(torch::nn::LinearOptions(config.n_embd, config.n_embd).bias(config.bias)))), // output projection
+  attn_dropout(config.dropout), // regularization
+  resid_dropout(config.dropout), // regularization
+  n_head(config.n_head),
+  n_embd(config.n_embd),
+  dropout(config.dropout),
+  flash(config.flash_attention) {
+    assert(config.n_embd % config.n_head == 0);
     if (!flash) {
       std::cout << "WARNING: using slow attention." << std::endl;
       // causal mask to ensure that attention is only applied to the left in the input sequence
-      this->bias = register_buffer("bias", torch::tril(torch::ones({block_size, block_size}))
-                                        .view({1, 1, block_size, block_size}));
+      this->bias = register_buffer("bias", torch::tril(torch::ones({config.block_size, config.block_size}))
+                                        .view({1, 1, config.block_size, config.block_size}));
    }
 }
 
@@ -81,11 +81,11 @@ torch::Tensor MLPImpl::forward(torch::Tensor x) {
   return x;
 }
 
-BlockImpl::BlockImpl(int64_t n_embd, int64_t n_head, double dropout, bool bias, int block_size, bool flash)
-    : ln_1(register_module("ln_1", LayerNorm(n_embd, bias))),
-      ln_2(register_module("ln_2", LayerNorm(n_embd, bias))),
-      attn(register_module("attn", CausalSelfAttention(n_embd, n_head, dropout, bias, block_size, flash))),
-      mlp(register_module("mlp", MLP(n_embd, dropout, bias))) {}
+BlockImpl::BlockImpl(const Config &config)
+    : ln_1(register_module("ln_1", LayerNorm(config.n_embd, config.bias))),
+      ln_2(register_module("ln_2", LayerNorm(config.n_embd, config.bias))),
+      attn(register_module("attn", CausalSelfAttention(config))),
+      mlp(register_module("mlp", MLP(config.n_embd, config.dropout, config.bias))) {}
 
 torch::Tensor BlockImpl::forward(torch::Tensor x) {
   auto x_res = attn(ln_1->forward(x));
@@ -107,7 +107,7 @@ GPT::GPT(const Config &config)
   register_module("ln_f", ln_f);
   register_module("lm_head", lm_head);
   for (int i = 0; i < config.n_layer; ++i) {
-    auto block = Block(config.n_embd, config.n_head, config.dropout, config.bias, config.block_size, config.flash_attention);
+    auto block = Block(config);
     h.emplace_back(register_module("h_" + std::to_string(i), block));
   }
   // Tie weights
