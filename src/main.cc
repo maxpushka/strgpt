@@ -15,7 +15,10 @@ int main(int argc, char** argv) {
 
   // Build config
   std::ifstream config_file{argv[1]};
-  nlohmann::json config_json = nlohmann::json::parse(config_file);
+  nlohmann::json config_json = nlohmann::json::parse(config_file,
+    /* callback */ nullptr,
+    /* allow_exceptions */ true,
+    /* ignore_comments */ true);
   train::Config config = config_json.get<train::Config>();
 
   // Initialize the environment based on the provided configuration
