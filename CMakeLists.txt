@@ -15,10 +15,6 @@ endif ()
 execute_process(COMMAND which clang OUTPUT_VARIABLE CLANG_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
 execute_process(COMMAND which clang++ OUTPUT_VARIABLE CLANGXX_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-# Set the C and C++ compilers
-set(CMAKE_C_COMPILER ${CLANG_PATH})
-set(CMAKE_CXX_COMPILER ${CLANGXX_PATH})
-
 # Set the compile flags
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -35,6 +31,10 @@ if (APPLE) # MacOS for ARM64
     message(STATUS "Downloading libtorch for MacOS")
     set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.3.0.zip")
 elseif (DEFINED ENV{CUDA_HOME}) # Linux with CUDA support
+    # CUDA compiler does not support GCC 9 and later versions
+    set(CMAKE_C_COMPILER ${CLANG_PATH})
+    set(CMAKE_CXX_COMPILER ${CLANGXX_PATH})
+
     set(TORCH_CUDA_ARCH_LIST "8.0 8.6 8.9 9.0" CACHE STRING "Architectures for CUDA compiler" FORCE)
     set(CMAKE_CUDA_FLAGS "-allow-unsupported-compiler" CACHE STRING "Flags for CUDA compiler" FORCE)
 
