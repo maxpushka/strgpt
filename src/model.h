@@ -9,14 +9,14 @@
 
 namespace model {
 struct Config {
-  int64_t vocab_size;
-  int64_t block_size;
-  int64_t n_layer;
-  int64_t n_head;
-  int64_t n_embd;
-  double dropout;
-  bool bias;
-  bool flash_attention;
+  int64_t vocab_size = 1024;
+  int64_t block_size = 50304; // GPT-2 vocab_size of 50257, padded up to nearest multiple of 64 for efficiency
+  int64_t n_layer = 12;
+  int64_t n_head = 12;
+  int64_t n_embd = 768;
+  double dropout = 0.0;
+  bool bias = true; // true: bias in Linears and LayerNorms, like GPT-2. false: a bit better and faster
+  bool flash_attention = true;
 
   NLOHMANN_DEFINE_TYPE_INTRUSIVE(Config, vocab_size, block_size, n_layer, n_head, n_embd, dropout, bias, flash_attention)
 };

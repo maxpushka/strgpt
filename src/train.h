@@ -6,43 +6,54 @@
 #include "model.h"
 
 namespace train {
-// Configuration struct to hold all training parameters
+// Configuration struct to hold all training parameters.
+// Default config values designed to train a gpt2 (124M) on OpenWebText.
 struct Config {
+  // I/O
   std::string data_dir;
-  std::string out_dir;
-
+  std::string out_dir = "out";
   int eval_interval = 2000;
   int log_interval = 1;
   int eval_iters = 200;
-  bool eval_only = false;
-  bool always_save_checkpoint = true;
-  std::string init_from = "resume"; // 'scratch' or 'resume' or 'gpt2*'
+  bool eval_only = false; // if true, the program exits right after the first eval
+  bool always_save_checkpoint = true; // if true, always save a checkpoint after each eval
+  std::string init_from = "scratch"; // 'scratch' or 'resume' or 'gpt2*'
+  // WandB logging
+  // wandb_log = False # disabled by default
+  // wandb_project = 'owt'
+  // wandb_run_name = 'gpt2' # 'run' + str(time.time())
+  // Data
   std::string dataset = "openwebtext";
-  int gradient_accumulation_steps = 40; // 5 * 8
-  int batch_size = 32;
+  int gradient_accumulation_steps = 5*8; // used to simulate larger batch sizes
+  int batch_size = 12; // if gradient_accumulation_steps > 1, this is the micro-batch size
+  // Model
   model::Config model{
       .vocab_size = 50257,
-      .block_size = 256, // context of up to 256 previous characters
-      .n_layer = 6,
-      .n_head = 6,
-      .n_embd = 384,
-      .dropout = 0.2,
+      .block_size = 1024, // context of up to 256 previous characters
+      .n_layer = 12,
+      .n_head = 12,
+      .n_embd = 768,
+      .dropout = 0.0,
       .bias = false,
   };
-  float learning_rate = 6e-4;
-  int max_iters = 600000;
+  // AdamW optimizer
+  float learning_rate = 6e-4; // max learning rate
+  int max_iters = 600000; // total number of training iterations
   float weight_decay = 0.1;
   float beta1 = 0.9;
   float beta2 = 0.95;
-  float grad_clip = 1.0;
-  bool decay_lr = true;
-  int warmup_iters = 2000;
-  int lr_decay_iters = 600000;
-  float min_lr = 6e-5;
-  std::string backend = "nccl";
-  std::string device = "cuda";
-  std::string dtype = "float16";
-  bool compile = true;
+  float grad_clip = 1.0; // clip gradients at this value, or disable if == 0.0
+  // Learning rate decay settings
+  bool decay_lr = true; // whether to decay the learning rate
+  int warmup_iters = 2000; // how many steps to warm up for
+  int lr_decay_iters = 600000; // should be ~= max_iters per Chinchilla
+  float min_lr = 6e-5; // minimum learning rate, should be ~= learning_rate/10 per Chinchilla
+  // DDP settings
+  std::string backend = "nccl"; // 'nccl', 'gloo', etc.
+  // System
+  std::string device = "cuda"; // examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
+  std::string dtype = "float16"; // 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
+  bool compile = true; // compile the model to be faster
 
   NLOHMANN_DEFINE_TYPE_INTRUSIVE(Config, data_dir, out_dir, eval_interval, log_interval, eval_iters, eval_only,
                                      always_save_checkpoint, init_from, dataset, gradient_accumulation_steps, batch_size,
