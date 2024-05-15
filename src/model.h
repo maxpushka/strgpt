@@ -2,10 +2,7 @@
 
 #include <torch/torch.h>
 #include <cmath>
-#include <vector>
 #include <nlohmann/json.hpp>
-
-#include "model.h"
 
 namespace model {
 struct Config {
@@ -83,18 +80,38 @@ class BlockImpl : public torch::nn::Module {
 
 TORCH_MODULE(Block); // Wrapper to create shared_ptr<BlockImpl>
 
+struct TransformerImpl : public torch::nn::Module {
+    torch::nn::Embedding wte;
+    torch::nn::Embedding wpe;
+    torch::nn::Dropout drop;
+    torch::nn::ModuleList h;
+    LayerNorm ln_f;
+
+    TransformerImpl(const Config& config);
+};
+
+TORCH_MODULE(Transformer); // Wrapper to create shared_ptr<BlockImpl>
+
 class GPT : public torch::nn::Module {
- private:
-  torch::nn::Embedding wte;
-  torch::nn::Embedding wpe;
-  torch::nn::Dropout drop;
-  std::vector<torch::nn::AnyModule> h; // Use AnyModule to store different types of modules
-  LayerNorm ln_f;
+  Config config;
+  Transformer transformer;
   torch::nn::Linear lm_head;
 
  public:
   GPT(const Config &config);
 
-  std::tuple<torch::Tensor, torch::Tensor> forward(torch::Tensor idx, torch::Tensor targets = {});
+  void init_weights(torch::nn::Module& module);
+
+  std::tuple<torch::Tensor, torch::Tensor> forward(const torch::Tensor& idx, const torch::optional<torch::Tensor>& targets = {});
+
+  int64_t get_num_params(bool non_embedding = true) const;
+  void crop_block_size(int64_t block_size);
+  std::shared_ptr<torch::optim::Optimizer> configure_optimizers(
+    double weight_decay,
+    double learning_rate,
+    std::tuple<double, double> betas,
+    const torch::Device& device_type);
+  double estimate_mfu(int64_t fwdbwd_per_iter, double dt) const;
+  torch::Tensor generate(torch::Tensor idx, int64_t max_new_tokens, double temperature = 1.0, int64_t top_k = -1);
 };
 }

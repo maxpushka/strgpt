@@ -46,8 +46,8 @@ struct Config {
   // Learning rate decay settings
   bool decay_lr = true; // whether to decay the learning rate
   int warmup_iters = 2000; // how many steps to warm up for
-  int lr_decay_iters = 600000; // should be ~= max_iters per Chinchilla
-  float min_lr = 6e-5; // minimum learning rate, should be ~= learning_rate/10 per Chinchilla
+  int lr_decay_iters = 600000; // should be ~= max_iters
+  float min_lr = 6e-5; // minimum learning rate, should be ~= learning_rate/10
   // DDP settings
   std::string backend = "nccl"; // 'nccl', 'gloo', etc.
   // System
