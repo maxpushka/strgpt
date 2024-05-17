@@ -15,7 +15,7 @@ struct Config {
   bool bias = true; // true: bias in Linears and LayerNorms, like GPT-2. false: a bit better and faster
   bool flash_attention = true;
 
-  NLOHMANN_DEFINE_TYPE_INTRUSIVE(Config, vocab_size, block_size, n_layer, n_head, n_embd, dropout, bias, flash_attention)
+  NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(Config, vocab_size, block_size, n_layer, n_head, n_embd, dropout, bias, flash_attention)
 };
 
 class LayerNormImpl : public torch::nn::Module {

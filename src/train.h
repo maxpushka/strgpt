@@ -35,6 +35,7 @@ struct Config {
       .n_embd = 768,
       .dropout = 0.0,
       .bias = false,
+      .flash_attention = true
   };
   // AdamW optimizer
   float learning_rate = 6e-4; // max learning rate
@@ -55,10 +56,10 @@ struct Config {
   std::string dtype = "float16"; // 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
   bool compile = true; // compile the model to be faster
 
-  NLOHMANN_DEFINE_TYPE_INTRUSIVE(Config, data_dir, out_dir, eval_interval, log_interval, eval_iters, eval_only,
-                                     always_save_checkpoint, init_from, dataset, gradient_accumulation_steps, batch_size,
-                                     model, learning_rate, max_iters, weight_decay, beta1, beta2, grad_clip, decay_lr,
-                                     warmup_iters, lr_decay_iters, min_lr, backend, device, dtype, compile)
+  NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(Config, data_dir, out_dir, eval_interval, log_interval, eval_iters, eval_only,
+                                              always_save_checkpoint, init_from, dataset, gradient_accumulation_steps, batch_size,
+                                              model, learning_rate, max_iters, weight_decay, beta1, beta2, grad_clip, decay_lr,
+                                              warmup_iters, lr_decay_iters, min_lr, backend, device, dtype, compile)
 };
 
 size_t load_checkpoint(const std::string& path, std::shared_ptr<model::GPT> model, std::shared_ptr<torch::optim::Optimizer> optimizer);

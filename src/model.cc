@@ -56,8 +56,9 @@ torch::Tensor CausalSelfAttentionImpl::forward(torch::Tensor x) {
     y = torch::native::scaled_dot_product_attention(q, k, v, std::nullopt, dropout_p, true, scale);
   } else {
     // manual implementation of attention
+    namespace I = torch::indexing;
     auto att = (q.matmul(k.transpose(-2, -1))) * (1.0 / std::sqrt(k.size(-1)));
-    att = att.masked_fill(bias.slice(0, 0, 0, T).slice(1, 0, T) == 0, -std::numeric_limits<float>::infinity()); // TODO: slicing
+    att = att.masked_fill(bias.index({I::Slice(), I::Slice(), I::Slice(I::None, T), I::Slice(I::None, T)}) == 0, -std::numeric_limits<float>::infinity());
     att = torch::softmax(att, -1);
     att = attn_dropout(att);
     y = att.matmul(v);  // (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
@@ -170,7 +171,7 @@ std::tuple<torch::Tensor, torch::Tensor> GPT::forward(const torch::Tensor& idx, 
     auto x = transformer->drop->forward(tok_emb + pos_emb);
 
     for (const auto& block : *transformer->h) {
-        x = block->as<torch::nn::Sequential>()->forward(x);
+        x = block->as<Block>()->forward(x);
     }
 
     x = transformer->ln_f->forward(x);
@@ -179,11 +180,13 @@ std::tuple<torch::Tensor, torch::Tensor> GPT::forward(const torch::Tensor& idx, 
     torch::Tensor loss;
     if (targets.has_value()) {
         // if we are given some desired targets also calculate the loss
+        namespace F = torch::nn::functional;
         logits = lm_head->forward(x);
-        loss = torch::nn::functional::cross_entropy(logits.view({-1, logits.size(-1)}), targets.value().view(-1), torch::nn::functional::CrossEntropyFuncOptions().ignore_index(-1));
+        loss = F::cross_entropy(logits.view({-1, logits.size(-1)}), targets.value().view(-1), F::CrossEntropyFuncOptions().ignore_index(-1));
     } else {
         // inference-time mini-optimization: only forward the lm_head on the very last position
-        logits = lm_head->forward(x.index({torch::indexing::Slice(), {-1}, torch::indexing::Slice()})); // TODO: slicing
+        namespace I = torch::indexing;
+        logits = lm_head->forward(x.index({I::Slice(), {-1}, I::Slice()}));
         loss = torch::Tensor();
     }
 
@@ -198,13 +201,14 @@ void GPT::crop_block_size(int64_t block_size) {
     config.block_size = block_size;
 
     // Resize the positional embeddings
-    transformer->wpe->weight = transformer->wpe->weight.slice(0, 0, block_size); // TODO: slicing
+    namespace I = torch::indexing;
+    transformer->wpe->weight = transformer->wpe->weight.index({I::Slice(I::None, block_size)});
 
     // Resize attention biases in all blocks if they exist
     for (auto& block : *transformer->h) {
         auto bias = block->named_parameters().find("attn.bias");
         if (bias == nullptr) continue;
-        *bias = bias->slice(2, 0, block_size).slice(3, 0, block_size); // TODO: slicing
+        *bias = bias->index({I::Slice(), I::Slice(), I::Slice(I::None, block_size), I::Slice(I::None, block_size)});
     }
 }
 
@@ -338,19 +342,19 @@ torch::Tensor GPT::generate(torch::Tensor idx, int64_t max_new_tokens, double te
     torch::NoGradGuard no_grad;
     for (int64_t i = 0; i < max_new_tokens; ++i) {
         // if the sequence context is growing too long we must crop it at block_size
-        auto idx_cond = (idx.size(1) <= config.block_size) ? idx : idx.slice(1, idx.size(1) - config.block_size, idx.size(1));
+        namespace I = torch::indexing;
+        auto idx_cond = (idx.size(1) <= config.block_size) ? idx : idx.index({I::Slice(), I::Slice(-config.block_size, I::None)});
         
         // forward the model to get the logits for the index in the sequence
         auto [logits, _] = forward(idx_cond);
         
         // pluck the logits at the final step and scale by desired temperature
-        logits = logits.select(1, -1) / temperature;
+        logits = logits.index({I::Slice(), -1, I::Slice()}) / temperature;
         
         // optionally crop the logits to only the top k options
         if (top_k > 0) {
-            auto topk = std::get<0>(torch::topk(logits, top_k));
-            auto min_val = topk.select(1, -1);
-            logits = torch::where(logits < min_val.unsqueeze(1), torch::full_like(logits, -std::numeric_limits<float>::infinity()), logits);
+            auto v = std::get<0>(torch::topk(logits, std::min(top_k, logits.size(-1))));
+            logits.masked_fill_(logits < v.index({I::Slice(), torch::tensor({-1})}), -std::numeric_limits<float>::infinity());
         }
         
         // apply softmax to convert logits to (normalized) probabilities
