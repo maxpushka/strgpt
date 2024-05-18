@@ -64,7 +64,7 @@ struct Config {
 
 size_t load_checkpoint(const std::string& path, std::shared_ptr<model::GPT> model, std::shared_ptr<torch::optim::Optimizer> optimizer);
 
-void train_model_with_scheduler_and_checkpointing(std::shared_ptr<model::GPT> model,
+void train_model(std::shared_ptr<model::GPT> model,
                                                   std::shared_ptr<torch::optim::Optimizer> optimizer,
                                                   const Config &cfg,
                                                   size_t prev_iters_count,

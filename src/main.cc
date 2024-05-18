@@ -41,14 +41,14 @@ int main(int argc, char** argv) {
 
   // Load weights from a checkpoint
   size_t previous_iterations_count = 0;
-  if (config.init_from == "resume") {
-    previous_iterations_count = train::load_checkpoint(config.out_dir, model, optimizer);
-  }
+  // if (config.init_from == "resume") {
+  //   previous_iterations_count = train::load_checkpoint(config.out_dir, model, optimizer);
+  // }
 
   // Run training loop
   std::cout << "Starting training loop." << std::endl;
   auto start = std::chrono::high_resolution_clock::now();
-  train::train_model_with_scheduler_and_checkpointing(model, optimizer, config, previous_iterations_count, device);
+  train::train_model(model, optimizer, config, previous_iterations_count, device);
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = duration_cast<std::chrono::seconds>(end - start).count();
   std::cout << "Training completed in " << duration << "s" << std::endl;
