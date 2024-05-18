@@ -14,7 +14,12 @@ int main(int argc, char** argv) {
   }
 
   // Build config
-  std::ifstream config_file{argv[1]};
+  std::filesystem::path config_path{argv[1]};
+  if (!std::filesystem::exists(config_path)) {
+    std::cerr << "Error: config file does not exist at a given path: " << config_path << std::endl;
+    return 1;
+  }
+  std::ifstream config_file{config_path};
   nlohmann::json config_json = nlohmann::json::parse(config_file,
     /* callback */ nullptr,
     /* allow_exceptions */ true,
