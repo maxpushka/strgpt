@@ -50,7 +50,7 @@ struct Config {
   int lr_decay_iters = 600000; // should be ~= max_iters
   float min_lr = 6e-5; // minimum learning rate, should be ~= learning_rate/10
   // DDP settings
-  std::string backend = "nccl"; // 'nccl', 'gloo', etc.
+  // std::string backend = "nccl"; // 'nccl', 'gloo', etc.
   // System
   std::string device = "cuda"; // examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
   std::string dtype = "float16"; // 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
@@ -59,7 +59,7 @@ struct Config {
   NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(Config, data_dir, out_dir, eval_interval, log_interval, eval_iters, eval_only,
                                               always_save_checkpoint, init_from, dataset, gradient_accumulation_steps, batch_size,
                                               model, learning_rate, max_iters, weight_decay, beta1, beta2, grad_clip, decay_lr,
-                                              warmup_iters, lr_decay_iters, min_lr, backend, device, dtype, compile)
+                                              warmup_iters, lr_decay_iters, min_lr, device, dtype, compile)
 };
 
 size_t load_checkpoint(const std::string& path, std::shared_ptr<model::GPT> model, std::shared_ptr<torch::optim::Optimizer> optimizer);

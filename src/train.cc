@@ -120,8 +120,19 @@ std::pair<torch::Tensor, torch::Tensor> get_batch(const MappedFile& dataset,
   }
 
   // Stack all samples into a single tensor and transfer to the specified device
-  auto X = torch::stack(inputs).to(device, /*non_blocking=*/true);
-  auto Y = torch::stack(targets).to(device, /*non_blocking=*/true);
+  auto X = torch::stack(inputs);
+  auto Y = torch::stack(targets);
+  if (device == torch::kCUDA) {
+      // When memory is pinned, the operating system guarantees
+      // that it will not be swapped out to disk.
+      // This allows for more efficient and faster direct memory access (DMA)
+      // transfers between the host and the GPU.
+      X = X.pin_memory().to(device, /*non_blocking=*/true);
+      Y = Y.pin_memory().to(device, /*non_blocking=*/true);
+  } else {
+      X = X.to(device);
+      Y = Y.to(device);
+  }
 
   return {X, Y};
 }
