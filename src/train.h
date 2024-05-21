@@ -13,9 +13,9 @@ struct Config {
   std::string data_dir;
   std::string out_dir = "out";
   int eval_interval = 2000;
-  int log_interval = 1;
   int eval_iters = 200;
   bool eval_only = false; // if true, the program exits right after the first eval
+  int log_interval = 1;
   bool always_save_checkpoint = true; // if true, always save a checkpoint after each eval
   std::string init_from = "scratch"; // 'scratch' or 'resume' or 'gpt2*'
   // WandB logging
