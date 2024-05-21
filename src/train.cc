@@ -1,11 +1,14 @@
 #include <filesystem>
 #include <limits>
+#include <memory>
+#include <stdexcept>
 #include <torch/torch.h>
 #include <iostream>
 #include <chrono>
 #include <string>
 #include <random>
 #include <regex>
+#include <fstream>
 
 #include "gradscaler.h"
 #include "train.h"
@@ -13,91 +16,90 @@
 #include "model.h"
 
 namespace train {
-// struct Checkpoint {
-//   model::GPT model;
-//   std::shared_ptr<torch::optim::Adam> optimizer;
-//   Config config;
-//   size_t iter_num;
-//   double best_val_loss;
+struct Checkpoint {
+  std::shared_ptr<model::GPT> model;
+  std::shared_ptr<torch::optim::Adam> optimizer;
+  Config config;
+  size_t iter_num;
+  double best_val_loss;
 
-//   // Serialization function for torch::save
-//   template <typename Archive>
-//   void serialize(Archive& archive) {
-//       archive(model, optimizer, config, iter_num, best_val_loss);
-//   }
-// };
+  void save() const {
+    // Create the directory name based on iter_num and best_val_loss
+    std::string dir_name = config.out_dir + "/checkpoint_" + std::to_string(iter_num) + "_loss_" + std::to_string(best_val_loss);
+    std::filesystem::create_directories(dir_name); // Ensure the directory exists
 
-// Save a checkpoint of the model
-void save_checkpoint(const std::string &path,
-                     std::shared_ptr<model::GPT> model,
-                     std::shared_ptr<torch::optim::Optimizer> optimizer,
-                     int iteration,
-                     double loss) {
-  std::string suffix = "_checkpoint_" + std::to_string(iteration) + "_loss_" + std::to_string(loss) + ".pt";
-  torch::save(model, path + "/model" + suffix);
-  torch::save(*optimizer, path + "/optimizer" + suffix);
-}
+    // Save the model
+    torch::save(model, dir_name + "/model.pt");
 
-// Function to find the latest checkpoint files in the given directory with matching versions
-std::tuple<std::string, std::string, int> find_latest_matching_checkpoints(const std::string &directory) {
-  std::regex model_pattern(R"(model_checkpoint_(\d+)_loss_\d+\.\d+\.pt)");
-  std::regex optimizer_pattern(R"(optimizer_checkpoint_(\d+)_loss_\d+\.\d+\.pt)");
-  std::map<int, std::string> model_files;
-  std::map<int, std::string> optimizer_files;
+    // Save the optimizer
+    torch::save(*optimizer, dir_name + "/optimizer.pt");
 
-  int max_version = -1;
-  std::string latest_model_path;
-  std::string latest_optimizer_path;
-
-  namespace fs = std::filesystem;
-  for (const auto &entry : fs::directory_iterator(directory)) {
-    std::smatch matches;
-    const std::string filename = entry.path().filename().string();
-
-    if (std::regex_search(filename, matches, model_pattern)) {
-      int version = std::stoi(matches[1].str());
-      model_files[version] = entry.path().string();
-    } else if (std::regex_search(filename, matches, optimizer_pattern)) {
-      int version = std::stoi(matches[1].str());
-      optimizer_files[version] = entry.path().string();
+    // Save the config
+    nlohmann::json config_json = config;
+    std::string config_path = dir_name + "/config.json";
+    std::ofstream output_file(config_path);
+    if (!output_file.is_open()) {
+      throw std::runtime_error("Error: unable to open file for writing: " + config_path);
     }
+    output_file << config_json.dump(2); // Dump with indentation of 2 spaces for readability
+    output_file.close();
   }
 
-  // Check for the highest version that exists in both maps
-  for (const auto &[version, model_path] : model_files) {
-    auto opt_it = optimizer_files.find(version);
-    if (opt_it != optimizer_files.end()) {
-      if (version > max_version) {
-        max_version = version;
-        latest_model_path = model_path;
-        latest_optimizer_path = opt_it->second;
+  // Load the latest checkpoint of the model and optimizer
+  void load(const std::string &path) {
+    auto [latest_dir, latest_version] = find_latest_matching_checkpoint_dir(path);
+    if (latest_dir.empty()) {
+      throw std::runtime_error("Error: no checkpoints found in the directory: " + path);
+    }
+
+    torch::load(model, latest_dir + "/model.pt");
+    torch::load(*optimizer, latest_dir + "/optimizer.pt");
+
+    std::ifstream config_file{latest_dir + "/config.json"};
+    nlohmann::json config_json = nlohmann::json::parse(config_file,
+      /* callback */ nullptr,
+      /* allow_exceptions */ true,
+      /* ignore_comments */ true);
+    config = config_json.get<train::Config>();
+    iter_num = latest_version;
+
+    std::cout << "Loaded model from " << latest_dir + "/model.pt" << std::endl;
+    std::cout << "Loaded optimizer from " << latest_dir + "/optimizer.pt" << std::endl;
+    std::cout << "Loaded config from " << latest_dir + "/config.json" << std::endl;
+    return;
+  }
+
+private:
+  // Function to find the latest checkpoint directory with matching versions
+  std::tuple<std::string, int> find_latest_matching_checkpoint_dir(const std::string &directory) {
+    std::regex dir_pattern{R"(checkpoint_(\d+)_loss_\d+\.\d+)"};
+
+    int max_version = -1;
+    std::string latest_dir;
+
+    namespace fs = std::filesystem;
+    for (const auto &entry : fs::directory_iterator(directory)) {
+      if (!entry.is_directory()) continue;
+
+      std::smatch matches;
+      const std::string dirname = entry.path().filename().string();
+
+      if (std::regex_search(dirname, matches, dir_pattern)) {
+        int version = std::stoi(matches[1].str());
+        if (version > max_version) {
+          max_version = version;
+          latest_dir = entry.path().string();
+        }
       }
     }
-  }
 
-  if (max_version != -1) {
-    return {latest_model_path, latest_optimizer_path, max_version};
-  } else {
-    return {"", "", -1};
+    if (max_version != -1) {
+      return {latest_dir, max_version};
+    } else {
+      return {"", -1};
+    }
   }
-}
-
-// Load the latest checkpoint of the model and optimizer
-size_t load_checkpoint(const std::string &path,
-                       std::shared_ptr<model::GPT> model,
-                       std::shared_ptr<torch::optim::Optimizer> optimizer) {
-  auto [latest_model_path, latest_optimizer_path, latest_version] = find_latest_matching_checkpoints(path);
-  if (latest_model_path.empty() || latest_optimizer_path.empty()) {
-    std::cerr << "No checkpoints found in the directory: " << path << std::endl;
-    return 0;
-  }
-
-  torch::load(model, latest_model_path);
-  torch::load(*optimizer, latest_optimizer_path);
-  std::cout << "Loaded model from " << latest_model_path << std::endl;
-  std::cout << "Loaded optimizer from " << latest_optimizer_path << std::endl;
-  return latest_version;
-}
+};
 
 struct Dataset {
   MappedFile train;
@@ -203,8 +205,21 @@ double get_lr(const Config &c, int iter) {
 void train_model(std::shared_ptr<model::GPT> model,
                  std::shared_ptr<torch::optim::Optimizer> optimizer,
                  const Config &cfg,
-                 size_t prev_iters_count,
                  torch::Device device) {
+  // Load checkpoint, if available
+  if (cfg.init_from == "resume") {
+    auto ckpt = Checkpoint{
+      .model = model,
+      .optimizer = std::dynamic_pointer_cast<torch::optim::Adam>(optimizer),
+    };
+    try {
+      ckpt.load(cfg.out_dir);
+    } catch (std::runtime_error& e) {
+      std::cout << e.what() << std::endl
+                << "Starting from scratch" << std::endl;
+    }
+  }
+  
   // Read the dataset
   const Dataset dataset{
       .train = std::move(MappedFile{cfg.data_dir + "/" + "train" + ".bin"}),
@@ -238,14 +253,14 @@ void train_model(std::shared_ptr<model::GPT> model,
         if (iter_num > 0) {
           // Save checkpoint
           std::cout << "saving checkpoint to " << cfg.out_dir << std::endl;
-          // auto checkpoint = Checkpoint{
-          //   .model = *model,
-          //   .optimizer = std::dynamic_pointer_cast<torch::optim::Adam>(optimizer),
-          //   .config = cfg,
-          //   .iter_num = iter_num,
-          //   .best_val_loss = best_val_loss,
-          // };
-          // torch::save(checkpoint, cfg.out_dir + "/ckpt.pt");
+          auto ckpt = Checkpoint{
+            .model = model,
+            .optimizer = std::dynamic_pointer_cast<torch::optim::Adam>(optimizer),
+            .config = cfg,
+            .iter_num = iter_num,
+            .best_val_loss = best_val_loss,
+          };
+          ckpt.save();
         }
       }
     }

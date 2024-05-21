@@ -62,11 +62,8 @@ struct Config {
                                               warmup_iters, lr_decay_iters, min_lr, device, dtype, compile)
 };
 
-size_t load_checkpoint(const std::string& path, std::shared_ptr<model::GPT> model, std::shared_ptr<torch::optim::Optimizer> optimizer);
-
 void train_model(std::shared_ptr<model::GPT> model,
-                                                  std::shared_ptr<torch::optim::Optimizer> optimizer,
-                                                  const Config &cfg,
-                                                  size_t prev_iters_count,
-                                                  torch::Device device);
+                 std::shared_ptr<torch::optim::Optimizer> optimizer,
+                 const Config &cfg,
+                 torch::Device device);
 }

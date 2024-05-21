@@ -44,16 +44,10 @@ int main(int argc, char** argv) {
   auto optimizer = std::make_shared<torch::optim::Adam>(model->parameters(), options);
   std::cout << "Optimizer initialized." << std::endl;
 
-  // Load weights from a checkpoint
-  size_t previous_iterations_count = 0;
-  // if (config.init_from == "resume") {
-  //   previous_iterations_count = train::load_checkpoint(config.out_dir, model, optimizer);
-  // }
-
   // Run training loop
   std::cout << "Starting training loop." << std::endl;
   auto start = std::chrono::high_resolution_clock::now();
-  train::train_model(model, optimizer, config, previous_iterations_count, device);
+  train::train_model(model, optimizer, config, device);
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = duration_cast<std::chrono::seconds>(end - start).count();
   std::cout << "Training completed in " << duration << "s" << std::endl;
