@@ -5,8 +5,7 @@
 
 # Build cache
 build
-cmake-build-debug
-cmake-build-release
+cmake-build-*
 
 # Training cache
 out
