@@ -54,14 +54,6 @@ find_package(Torch REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
-# ------------------- re2 ---------------------
-FetchContent_Declare(
-        re2
-        GIT_REPOSITORY https://github.com/google/re2.git
-        GIT_TAG b84e3ff189980a33d4a0c6fa1201aa0b3b8bab4a
-)
-FetchContent_MakeAvailable(re2)
-
 # ------------------- JSON ---------------------
 FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
 FetchContent_MakeAvailable(json)
@@ -99,7 +91,10 @@ add_executable(${PROJECT_NAME}
         src/mapped_file.h
         src/gradscaler.h
 )
-target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}" re2::re2 nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME}
+        "${TORCH_LIBRARIES}"
+        nlohmann_json::nlohmann_json
+)
 
 # ------------------- Tests ---------------------
 enable_testing()
@@ -108,7 +103,11 @@ add_executable(${PROJECT_NAME}_tests
         src/bpe.h
         src/bpe.cc
 )
-target_link_libraries(${PROJECT_NAME}_tests GTest::gtest_main "${TORCH_LIBRARIES}" re2::re2 nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME}_tests
+        GTest::gtest_main
+        "${TORCH_LIBRARIES}"
+        nlohmann_json::nlohmann_json
+)
 target_compile_definitions(${PROJECT_NAME}_tests PRIVATE UNIT_TEST)
 include(GoogleTest)
 gtest_discover_tests(${PROJECT_NAME}_tests)

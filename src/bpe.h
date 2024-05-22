@@ -1,11 +1,10 @@
 #pragma once
 
 #include <memory>
+#include <regex>
 #include <unordered_map>
 #include <vector>
 
-#include <re2/re2.h>
-#include <re2/stringpiece.h>
 #include <nlohmann/json.hpp>
 
 #ifdef UNIT_TEST
@@ -32,14 +31,14 @@ using BPERanks = std::unordered_map<std::pair<std::wstring, std::wstring>, int,
 class BPE final {
  private:
   BPERanks bpe_ranks;
-  std::unique_ptr<RE2> re;
+  std::regex re;
   std::unordered_map<std::string, int> t2i;  // token to id
   std::unordered_map<int, std::string> i2t;  // id to token
   std::unordered_map<uint8_t, wchar_t> b2u;
   std::unordered_map<wchar_t, uint8_t> u2b;
 
  public:
-  BPE(std::istream &config_file, std::unique_ptr<RE2> re);
+  BPE(std::istream &config_file, std::regex re);
 
   [[nodiscard]] std::vector<int> encode(const std::string &text) const;
 

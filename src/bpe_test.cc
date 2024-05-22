@@ -16,28 +16,26 @@ class TokenizerBPE : public testing::Test {
     config_path << assets_root << "/tokenizer.json";
     std::ifstream config_file(config_path.str(), std::ios::in);
 
-    auto re = std::make_unique<RE2>(
-        "('s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| "
-        "?[^\\s\\p{L}\\p{N}]+|\\s+\\(?!\\S\\)|\\s+)");
-
-    this->bpe_instance = std::make_unique<bpe::BPE>(config_file, std::move(re));
+    std::regex re(
+        R"((\'s|\'t|\'re|\'ve|\'m|\'ll|\'d| ?[[:alpha:]]+| ?[[:digit:]]+| ?[^\s[:alpha:][:digit:]]+|\s+(?!\S)|\s+))"
+    );
+    this->bpe_instance = std::make_unique<bpe::BPE>(config_file, re);
   }
 
   void TearDown() override {}
 };
 
 TEST_F(TokenizerBPE, RegexCompilation) {
-  EXPECT_TRUE(bpe_instance->re->ok());  // compiled; if not, see re.error();
-
-  std::string w;
   std::string text = "we'd annoyingly 顽皮";
-  re2::StringPiece input(text);
+  std::smatch match;
+  std::string input = text;
 
   std::vector<std::string> v;
-  while (RE2::FindAndConsume(&input, *bpe_instance->re, &w)) {
-    v.push_back(w);
+  while (std::regex_search(input, match, bpe_instance->re)) {
+    v.push_back(match.str());
+    input = match.suffix().str();
   }
-  EXPECT_EQ(v, std::vector<std::string>({"we", "\'d", " annoyingly", " 顽皮"}));
+  EXPECT_EQ(v, std::vector<std::string>({"we", "'d", " annoyingly", " 顽皮"}));
 }
 
 TEST_F(TokenizerBPE, BytesToUnicodeConversion) {
@@ -80,8 +78,10 @@ TEST_F(TokenizerBPE, LoadVocab) {
 TEST_F(TokenizerBPE, LoadMergeRules) {
   EXPECT_EQ(bpe_instance->bpe_ranks.size(), 50000);
 
-  auto
-      iter = bpe_instance->bpe_ranks.find({bpe_instance->utf8_to_wstring("Ġg"), bpe_instance->utf8_to_wstring("azed")});
+  auto iter = bpe_instance->bpe_ranks.find(
+    {bpe_instance->utf8_to_wstring("Ġg"),
+    bpe_instance->utf8_to_wstring("azed")}
+  );
   EXPECT_NE(iter, bpe_instance->bpe_ranks.end());
   EXPECT_EQ(iter->second, 49998);
 }
@@ -102,8 +102,6 @@ TEST_F(TokenizerBPE, BPEAlgorithm) {
 }
 
 TEST_F(TokenizerBPE, Tokenize) {
-  EXPECT_TRUE(bpe_instance->re->ok());  // compiled; if not, see re.error();
-
   std::vector<std::string> candidates = {
       "this is <|endoftext|> else<|endoftext|>",
       "<|endoftext|> else<|endoftext|>", "this is <|endoftext|> else",

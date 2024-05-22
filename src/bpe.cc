@@ -9,7 +9,7 @@
 #include <iostream>
 
 namespace bpe {
-BPE::BPE(std::istream &config_file, std::unique_ptr<RE2> re) : re(std::move(re)) {
+BPE::BPE(std::istream &config_file, std::regex re) : re(std::move(re)) {
   using json = nlohmann::json;
 
   json vocab, merges;
@@ -131,10 +131,14 @@ std::vector<std::string> BPE::tokenize(const std::string &text) const {
 }
 
 void BPE::_tokenize(const std::string &text, std::vector<std::string> &result) const {
-  re2::StringPiece input(text);
+  std::smatch match;
   std::string token;
+  std::string input = text;
 
-  while (RE2::FindAndConsume(&input, *re, &token)) {
+  while (std::regex_search(input, match, re)) {
+    token = match.str();
+    input = match.suffix().str();
+
     std::wstring wtoken = byte_encode_token(token);
     std::vector<std::wstring> bpe_tokens = bpe(wtoken);
     for (const auto &ws : bpe_tokens) {
