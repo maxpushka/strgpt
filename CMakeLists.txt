@@ -82,15 +82,12 @@ FetchContent_MakeAvailable(googletest)
 # ------------------- Main Binary ---------------------
 add_executable(${PROJECT_NAME}
         src/main.cc
-        src/bpe.h
-        src/bpe.cc
-        src/model.h
+        src/tokenizer/char.cc
+        src/tokenizer/bpe.cc
         src/model.cc
-        src/train.h
         src/train.cc
-        src/mapped_file.h
-        src/gradscaler.h
 )
+target_include_directories(${PROJECT_NAME} PRIVATE src)
 target_link_libraries(${PROJECT_NAME}
         "${TORCH_LIBRARIES}"
         nlohmann_json::nlohmann_json
@@ -99,10 +96,12 @@ target_link_libraries(${PROJECT_NAME}
 # ------------------- Tests ---------------------
 enable_testing()
 add_executable(${PROJECT_NAME}_tests
-        src/bpe_test.cc
-        src/bpe.h
-        src/bpe.cc
+        src/tokenizer/char_test.cc
+        src/tokenizer/char.cc
+        src/tokenizer/bpe_test.cc
+        src/tokenizer/bpe.cc
 )
+target_include_directories(${PROJECT_NAME}_tests PRIVATE src)
 target_link_libraries(${PROJECT_NAME}_tests
         GTest::gtest_main
         "${TORCH_LIBRARIES}"

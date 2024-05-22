@@ -11,7 +11,7 @@
 #include <gtest/gtest_prod.h>
 #endif
 
-namespace bpe {
+namespace tokenizer {
 // hash_pair_wstring is used in BPERanks to make a pair of wstrings
 // hashable, so the pair can be used as the key to unordered_map.
 struct hash_pair_wstring {
@@ -81,4 +81,4 @@ class BPE final {
   FRIEND_TEST(TokenizerBPE, EncodeDecode);
 #endif
 };
-}  // namespace bpe
+}  // namespace tokenizer

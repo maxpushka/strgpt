@@ -8,7 +8,7 @@
 #include <locale>
 #include <iostream>
 
-namespace bpe {
+namespace tokenizer {
 BPE::BPE(std::istream &config_file, std::regex re) : re(std::move(re)) {
   using json = nlohmann::json;
 
@@ -230,4 +230,4 @@ std::vector<std::pair<std::wstring, std::wstring>> BPE::get_pairs(const std::wst
 
   return pairs;
 }
-}  // namespace bpe
+}  // namespace tokenizer
