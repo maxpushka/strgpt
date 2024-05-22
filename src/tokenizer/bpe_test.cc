@@ -132,4 +132,13 @@ TEST_F(TokenizerBPE, EncodeDecode) {
     EXPECT_EQ(bpe_tokenizer->decode(ids), s);
   }
 }
+
+TEST_F(TokenizerBPE, HelloWorld) {
+  std::string text = "Hello, world!";
+  std::vector<int> encoded = bpe_tokenizer->encode(text);
+  std::vector<int> expected = {15496, 11, 995, 0};
+
+  ASSERT_EQ(encoded.size(), 4);
+  EXPECT_EQ(encoded, expected);
+}
 }
