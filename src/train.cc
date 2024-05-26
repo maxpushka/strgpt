@@ -16,90 +16,107 @@
 #include "model.h"
 
 namespace train {
-struct Checkpoint {
-  std::shared_ptr<model::GPT> model;
-  std::shared_ptr<torch::optim::Adam> optimizer;
-  Config config;
-  size_t iter_num;
-  double best_val_loss;
+Checkpoint::Checkpoint(const std::string& path, const torch::Device device, const bool load_latest_) {
+  if (load_latest_) {
+    load_latest(path, device);
+  } else {
+    load(path, device);
+  }
+}
 
-  void save() const {
-    // Create the directory name based on iter_num and best_val_loss
-    std::string dir_name = config.train.out_dir + "/checkpoint_" + std::to_string(iter_num) + "_loss_" + std::to_string(best_val_loss);
-    std::filesystem::create_directories(dir_name); // Ensure the directory exists
+void Checkpoint::save() const {
+  // Create the directory name based on iter_num and best_val_loss
+  std::string dir_name = config.train.out_dir + "/checkpoint_" + std::to_string(iter_num) + "_loss_" + std::to_string(best_val_loss);
+  std::filesystem::create_directories(dir_name); // Ensure the directory exists
 
-    // Save the model
-    torch::save(model, dir_name + "/model.pt");
+  // Save the model
+  torch::save(model, dir_name + "/model.pt");
 
-    // Save the optimizer
-    torch::save(*optimizer, dir_name + "/optimizer.pt");
+  // Save the optimizer
+  torch::save(*optimizer, dir_name + "/optimizer.pt");
 
-    // Save the config
-    nlohmann::json config_json = config;
-    std::string config_path = dir_name + "/config.json";
-    std::ofstream output_file(config_path);
-    if (!output_file.is_open()) {
-      throw std::runtime_error("Error: unable to open file for writing: " + config_path);
-    }
-    output_file << config_json.dump(2); // Dump with indentation of 2 spaces for readability
-    output_file.close();
+  // Save the config
+  nlohmann::json config_json = config;
+  std::string config_path = dir_name + "/config.json";
+  std::ofstream output_file(config_path);
+  if (!output_file.is_open()) {
+    throw std::runtime_error("Error: unable to open file for writing: " + config_path);
+  }
+  output_file << config_json.dump(2); // Dump with indentation of 2 spaces for readability
+  output_file.close();
+}
+
+void Checkpoint::load(const std::string& checkpoint_dir, const torch::Device device) {
+  if (!std::filesystem::exists(checkpoint_dir)) {
+    throw std::runtime_error("Error: config file does not exist at a given path: " + checkpoint_dir);
+  }
+  
+  std::ifstream config_file{checkpoint_dir + "/config.json"};
+  nlohmann::json config_json = nlohmann::json::parse(config_file,
+    /* callback */ nullptr,
+    /* allow_exceptions */ true,
+    /* ignore_comments */ true);
+  config = config_json.get<train::Config>();
+
+  model = std::make_shared<model::GPT>(config.model);
+  model->to(device);
+  std::cout << "Model initialized." << std::endl;
+
+  auto options = torch::optim::AdamOptions(config.train.learning_rate)
+      .betas({config.train.beta1, config.train.beta2})
+      .weight_decay(config.train.weight_decay);
+  auto optimizer = std::make_shared<torch::optim::Adam>(model->parameters(), options);
+  std::cout << "Optimizer initialized." << std::endl;
+
+  torch::load(model, checkpoint_dir + "/model.pt");
+  torch::load(*optimizer, checkpoint_dir + "/optimizer.pt");
+
+  std::smatch matches;
+  if (!std::regex_search(checkpoint_dir, matches, dir_pattern)) {
+  }
+  iter_num = std::stoi(matches[1].str());
+
+  std::cout << "Loaded config from " << checkpoint_dir + "/config.json" << std::endl;  
+  std::cout << "Loaded model from " << checkpoint_dir + "/model.pt" << std::endl;
+  std::cout << "Loaded optimizer from " << checkpoint_dir + "/optimizer.pt" << std::endl;
+}
+
+void Checkpoint::load_latest(const std::string &path, const torch::Device device) {
+  auto latest_dir = find_latest_matching_checkpoint_dir(path);
+  if (latest_dir.empty()) {
+    throw std::runtime_error("Error: no checkpoints found in the directory: " + path);
   }
 
-  // Load the latest checkpoint of the model and optimizer
-  void load(const std::string &path) {
-    auto [latest_dir, latest_version] = find_latest_matching_checkpoint_dir(path);
-    if (latest_dir.empty()) {
-      throw std::runtime_error("Error: no checkpoints found in the directory: " + path);
-    }
+  load(latest_dir, device);
+  return;
+}
 
-    torch::load(model, latest_dir + "/model.pt");
-    torch::load(*optimizer, latest_dir + "/optimizer.pt");
+std::filesystem::path Checkpoint::find_latest_matching_checkpoint_dir(const std::string &directory) {
+  int max_version = -1;
+  std::string latest_dir;
 
-    std::ifstream config_file{latest_dir + "/config.json"};
-    nlohmann::json config_json = nlohmann::json::parse(config_file,
-      /* callback */ nullptr,
-      /* allow_exceptions */ true,
-      /* ignore_comments */ true);
-    config = config_json.get<train::Config>();
-    iter_num = latest_version;
+  namespace fs = std::filesystem;
+  for (const auto &entry : fs::directory_iterator(directory)) {
+    if (!entry.is_directory()) continue;
 
-    std::cout << "Loaded model from " << latest_dir + "/model.pt" << std::endl;
-    std::cout << "Loaded optimizer from " << latest_dir + "/optimizer.pt" << std::endl;
-    std::cout << "Loaded config from " << latest_dir + "/config.json" << std::endl;
-    return;
-  }
+    std::smatch matches;
+    const std::string dirname = entry.path().filename().string();
 
-private:
-  // Function to find the latest checkpoint directory with matching versions
-  std::tuple<std::string, int> find_latest_matching_checkpoint_dir(const std::string &directory) {
-    std::regex dir_pattern{R"(checkpoint_(\d+)_loss_\d+\.\d+)"};
-
-    int max_version = -1;
-    std::string latest_dir;
-
-    namespace fs = std::filesystem;
-    for (const auto &entry : fs::directory_iterator(directory)) {
-      if (!entry.is_directory()) continue;
-
-      std::smatch matches;
-      const std::string dirname = entry.path().filename().string();
-
-      if (std::regex_search(dirname, matches, dir_pattern)) {
-        int version = std::stoi(matches[1].str());
-        if (version > max_version) {
-          max_version = version;
-          latest_dir = entry.path().string();
-        }
+    if (std::regex_search(dirname, matches, dir_pattern)) {
+      int version = std::stoi(matches[1].str());
+      if (version > max_version) {
+        max_version = version;
+        latest_dir = entry.path().string();
       }
     }
-
-    if (max_version != -1) {
-      return {latest_dir, max_version};
-    } else {
-      return {"", -1};
-    }
   }
-};
+
+  if (max_version != -1) {
+    return latest_dir;
+  } else {
+    return "";
+  }
+}
 
 struct Dataset {
   MappedFile train;
@@ -208,12 +225,10 @@ void train_model(std::shared_ptr<model::GPT> model,
                  torch::Device device) {
   // Load checkpoint, if available
   if (cfg.train.init_from == "resume") {
-    auto ckpt = Checkpoint{
-      .model = model,
-      .optimizer = std::dynamic_pointer_cast<torch::optim::Adam>(optimizer),
-    };
     try {
-      ckpt.load(cfg.train.out_dir);
+      Checkpoint ckpt{cfg.train.out_dir, device, true}; 
+      model = ckpt.model;
+      optimizer = ckpt.optimizer;
     } catch (std::runtime_error& e) {
       std::cout << e.what() << std::endl
                 << "Starting from scratch" << std::endl;
@@ -221,9 +236,10 @@ void train_model(std::shared_ptr<model::GPT> model,
   }
   
   // Read the dataset
+  std::string dataset_path = cfg.data.data_dir + '/' + cfg.data.dataset + '/';
   const Dataset dataset{
-      .train = std::move(MappedFile{cfg.data.data_dir + "/" + "train" + ".bin"}),
-      .eval = std::move(MappedFile{cfg.data.data_dir + "/" + "val" + ".bin"}),
+      .train = std::move(MappedFile{dataset_path + cfg.data.train_file}),
+      .eval = std::move(MappedFile{dataset_path + cfg.data.val_file}),
       .batch_size = cfg.train.batch_size,
       .block_size = cfg.model.block_size,
       .device = device,
@@ -244,7 +260,7 @@ void train_model(std::shared_ptr<model::GPT> model,
     }
 
     // Evaluate the loss on train/val sets and write checkpoints
-    if (iter_num % cfg.train.eval_interval == 0) {
+    if (iter_num % cfg.train.eval_interval == 0 && iter_num != 0) {
       auto losses = estimate_loss(cfg.train.eval_iters, model, dataset);
       std::cout << "step " << iter_num << ": train loss " << std::fixed << std::setprecision(4)
                 << losses["train"] << ", val loss " << losses["val"] << std::endl;
@@ -253,13 +269,12 @@ void train_model(std::shared_ptr<model::GPT> model,
         if (iter_num > 0) {
           // Save checkpoint
           std::cout << "saving checkpoint to " << cfg.train.out_dir << std::endl;
-          auto ckpt = Checkpoint{
-            .model = model,
-            .optimizer = std::dynamic_pointer_cast<torch::optim::Adam>(optimizer),
-            .config = cfg,
-            .iter_num = iter_num,
-            .best_val_loss = best_val_loss,
-          };
+          Checkpoint ckpt{};
+          ckpt.model = model,
+          ckpt.optimizer = std::dynamic_pointer_cast<torch::optim::Adam>(optimizer),
+          ckpt.config = cfg,
+          ckpt.iter_num = iter_num,
+          ckpt.best_val_loss = best_val_loss,
           ckpt.save();
         }
       }

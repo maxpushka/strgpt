@@ -65,6 +65,32 @@ struct Config {
   NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(Config, data, train, model)
 };
 
+struct Checkpoint {
+  std::shared_ptr<model::GPT> model;
+  std::shared_ptr<torch::optim::Adam> optimizer;
+  Config config;
+  size_t iter_num;
+  double best_val_loss;
+
+  Checkpoint() = default;
+  Checkpoint(
+    const std::string& path,
+    const torch::Device device,
+    const bool load_latest
+  );
+
+  void save() const;
+private:
+
+  // Load the latest checkpoint of the model and optimizer
+  void load(const std::string& checkpoint_dir, const torch::Device device);
+  void load_latest(const std::string &out_dir, const torch::Device device);
+
+  // Function to find the latest checkpoint directory with matching versions
+  const std::regex dir_pattern{R"(checkpoint_(\d+)_loss_\d+\.\d+)"};
+  std::filesystem::path find_latest_matching_checkpoint_dir(const std::string &directory);
+};
+
 void train_model(std::shared_ptr<model::GPT> model,
                  std::shared_ptr<torch::optim::Optimizer> optimizer,
                  const Config &cfg,
