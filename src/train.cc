@@ -25,7 +25,7 @@ struct Checkpoint {
 
   void save() const {
     // Create the directory name based on iter_num and best_val_loss
-    std::string dir_name = config.out_dir + "/checkpoint_" + std::to_string(iter_num) + "_loss_" + std::to_string(best_val_loss);
+    std::string dir_name = config.train.out_dir + "/checkpoint_" + std::to_string(iter_num) + "_loss_" + std::to_string(best_val_loss);
     std::filesystem::create_directories(dir_name); // Ensure the directory exists
 
     // Save the model
@@ -186,19 +186,19 @@ std::map<std::string, double> estimate_loss(const int eval_iters, std::shared_pt
 }
 
 double get_lr(const Config &c, int iter) {
-  if (c.decay_lr) return c.learning_rate;
+  if (c.train.decay_lr) return c.train.learning_rate;
 
   // 1) linear warmup for warmup_iters steps
-  if (iter < c.warmup_iters) return c.learning_rate * iter / c.warmup_iters;
+  if (iter < c.train.warmup_iters) return c.train.learning_rate * iter / c.train.warmup_iters;
 
   // 2) if it > lr_decay_iters, return min learning rate
-  if (iter > c.lr_decay_iters) return c.min_lr;
+  if (iter > c.train.lr_decay_iters) return c.train.min_lr;
 
   // 3) in between, use cosine decay down to min learning rate
-  double decay_ratio = static_cast<double>(iter - c.warmup_iters) / (c.lr_decay_iters - c.warmup_iters);
+  double decay_ratio = static_cast<double>(iter - c.train.warmup_iters) / (c.train.lr_decay_iters - c.train.warmup_iters);
   assert(0 <= decay_ratio && decay_ratio <= 1);
   double coeff = 0.5 * (1.0 + std::cos(M_PI * decay_ratio)); // coeff ranges 0..1
-  return c.min_lr + coeff * (c.learning_rate - c.min_lr);
+  return c.train.min_lr + coeff * (c.train.learning_rate - c.train.min_lr);
 }
 
 // The modified training function with checkpointing and learning rate adjustment
@@ -207,13 +207,13 @@ void train_model(std::shared_ptr<model::GPT> model,
                  const Config &cfg,
                  torch::Device device) {
   // Load checkpoint, if available
-  if (cfg.init_from == "resume") {
+  if (cfg.train.init_from == "resume") {
     auto ckpt = Checkpoint{
       .model = model,
       .optimizer = std::dynamic_pointer_cast<torch::optim::Adam>(optimizer),
     };
     try {
-      ckpt.load(cfg.out_dir);
+      ckpt.load(cfg.train.out_dir);
     } catch (std::runtime_error& e) {
       std::cout << e.what() << std::endl
                 << "Starting from scratch" << std::endl;
@@ -222,9 +222,9 @@ void train_model(std::shared_ptr<model::GPT> model,
   
   // Read the dataset
   const Dataset dataset{
-      .train = std::move(MappedFile{cfg.data_dir + "/" + "train" + ".bin"}),
-      .eval = std::move(MappedFile{cfg.data_dir + "/" + "val" + ".bin"}),
-      .batch_size = cfg.batch_size,
+      .train = std::move(MappedFile{cfg.data.data_dir + "/" + "train" + ".bin"}),
+      .eval = std::move(MappedFile{cfg.data.data_dir + "/" + "val" + ".bin"}),
+      .batch_size = cfg.train.batch_size,
       .block_size = cfg.model.block_size,
       .device = device,
   };
@@ -236,7 +236,7 @@ void train_model(std::shared_ptr<model::GPT> model,
   size_t local_iter_num = 0;
   torch::amp::GradScaler scaler{torch::amp::GradScalerOptions{}.enabled(device == torch::kCUDA)};
 
-  for (size_t iter_num = 0; iter_num < cfg.max_iters; ++iter_num) {
+  for (size_t iter_num = 0; iter_num < cfg.train.max_iters; ++iter_num) {
     // Determine and set the learning rate for this iteration
     double lr = get_lr(cfg, iter_num);
     for (auto &param_group : optimizer->param_groups()) {
@@ -244,15 +244,15 @@ void train_model(std::shared_ptr<model::GPT> model,
     }
 
     // Evaluate the loss on train/val sets and write checkpoints
-    if (iter_num % cfg.eval_interval == 0) {
-      auto losses = estimate_loss(cfg.eval_iters, model, dataset);
+    if (iter_num % cfg.train.eval_interval == 0) {
+      auto losses = estimate_loss(cfg.train.eval_iters, model, dataset);
       std::cout << "step " << iter_num << ": train loss " << std::fixed << std::setprecision(4)
                 << losses["train"] << ", val loss " << losses["val"] << std::endl;
-      if (losses["val"] < best_val_loss || cfg.always_save_checkpoint) {
+      if (losses["val"] < best_val_loss || cfg.train.always_save_checkpoint) {
         best_val_loss = losses["val"];
         if (iter_num > 0) {
           // Save checkpoint
-          std::cout << "saving checkpoint to " << cfg.out_dir << std::endl;
+          std::cout << "saving checkpoint to " << cfg.train.out_dir << std::endl;
           auto ckpt = Checkpoint{
             .model = model,
             .optimizer = std::dynamic_pointer_cast<torch::optim::Adam>(optimizer),
@@ -264,23 +264,23 @@ void train_model(std::shared_ptr<model::GPT> model,
         }
       }
     }
-    if (iter_num == 0 && cfg.eval_only) break;
+    if (iter_num == 0 && cfg.train.eval_only) break;
 
     // Forward backward update, with optional gradient accumulation
     torch::Tensor step_loss;
-    for (int micro_step = 0; micro_step < cfg.gradient_accumulation_steps; ++micro_step) {
+    for (int micro_step = 0; micro_step < cfg.train.gradient_accumulation_steps; ++micro_step) {
       auto [X, Y] = get_batch(dataset, false);
       auto [logits, loss] = model->forward(X, Y);
-      loss = loss / cfg.gradient_accumulation_steps;
+      loss = loss / cfg.train.gradient_accumulation_steps;
       // Backward pass, with gradient scaling if training in fp16
       scaler.scale(loss).backward();
       step_loss = std::move(loss);
     }
 
     // Clip the gradient
-    if (cfg.grad_clip != 0.0) {
+    if (cfg.train.grad_clip != 0.0) {
       scaler.unscale_(optimizer);
-      torch::nn::utils::clip_grad_norm_(model->parameters(), cfg.grad_clip);
+      torch::nn::utils::clip_grad_norm_(model->parameters(), cfg.train.grad_clip);
     }
 
     // Step the optimizer and scaler if training in fp16
@@ -293,10 +293,10 @@ void train_model(std::shared_ptr<model::GPT> model,
     auto t1 = std::chrono::high_resolution_clock::now();
     float dt = std::chrono::duration<float>(t1 - t0).count();
     t0 = t1;
-    if (iter_num % cfg.log_interval == 0) {
-      float lossf = step_loss.item<float>() * cfg.gradient_accumulation_steps;
+    if (iter_num % cfg.train.log_interval == 0) {
+      float lossf = step_loss.item<float>() * cfg.train.gradient_accumulation_steps;
       if (local_iter_num >= 5) {
-        double mfu = model->estimate_mfu(cfg.batch_size * cfg.gradient_accumulation_steps, dt);
+        double mfu = model->estimate_mfu(cfg.train.batch_size * cfg.train.gradient_accumulation_steps, dt);
         running_mfu = running_mfu == -1.0 ? mfu : 0.9 * running_mfu + 0.1 * mfu;
       }
       std::cout << "iter " << iter_num << ": loss " << std::fixed << std::setprecision(4) << lossf

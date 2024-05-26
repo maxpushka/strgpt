@@ -27,9 +27,9 @@ int main(int argc, char** argv) {
   train::Config config = config_json.get<train::Config>();
 
   // Initialize the environment based on the provided configuration
-  std::filesystem::create_directories(config.out_dir);
+  std::filesystem::create_directories(config.train.out_dir);
   torch::manual_seed(1337);
-  torch::Device device{config.device};
+  torch::Device device{config.train.device};
   std::cout << "Configuration and environment setup complete." << std::endl;
 
   // Initialize the model
@@ -38,9 +38,9 @@ int main(int argc, char** argv) {
   std::cout << "Model initialized." << std::endl;
 
   // Initialize the optimizer
-  auto options = torch::optim::AdamOptions(config.learning_rate)
-      .betas({config.beta1, config.beta2})
-      .weight_decay(config.weight_decay);
+  auto options = torch::optim::AdamOptions(config.train.learning_rate)
+      .betas({config.train.beta1, config.train.beta2})
+      .weight_decay(config.train.weight_decay);
   auto optimizer = std::make_shared<torch::optim::Adam>(model->parameters(), options);
   std::cout << "Optimizer initialized." << std::endl;
 

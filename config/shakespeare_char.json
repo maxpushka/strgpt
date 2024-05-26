@@ -1,18 +1,29 @@
 {
-  "data_dir": "data/shakespeare_char",
-  "out_dir": "out/shakespeare_char",
-  "eval_interval": 250, // keep frequent because we'll overfit
-  "eval_iters": 200,
-  "eval_only": false,
-  "log_interval": 10, // don't print too often
-  "always_save_checkpoint": false, // we expect to overfit on this small dataset, so only save when val improves
-  /*"wandb_log": false, // override via command line if you like
-  "wandb_project": "shakespeare-char",
-  "wandb_run_name": "mini-gpt",*/
-  "init_from": "scratch",
-  "dataset": "shakespeare-char",
-  "gradient_accumulation_steps": 1,
-  "batch_size": 64,
+  "data": {
+    "data_dir": "data",
+    "dataset": "shakespeare_char",
+    "train_file": "train.bin",
+    "val_file": "val.bin"
+  },
+  "train": {
+    "out_dir": "out/shakespeare_char",
+    "eval_interval": 250, // keep frequent because we'll overfit
+    "eval_iters": 200,
+    "eval_only": false,
+    "log_interval": 10, // don't print too often
+    "always_save_checkpoint": false, // we expect to overfit on this small dataset, so only save when val improves
+    "init_from": "resume",
+    "gradient_accumulation_steps": 1,
+    "batch_size": 64,
+    "learning_rate": 1e-3, // with baby networks can afford to go a bit higher
+    "max_iters": 5000,
+    "beta2": 0.99, // make a bit bigger because number of tokens per iter is small
+    "warmup_iters": 100, // not super necessary potentially
+    "lr_decay_iters": 5000, // make equal to max_iters usually
+    "min_lr": 1e-4, // learning_rate / 10 usually
+    "device": "mps",
+    "dtype": "float16"
+  },
   "model": {
     "vocab_size": 65,
     "block_size": 256, // context of up to 256 previous characters
@@ -22,15 +33,5 @@
     "n_embd": 384,
     "dropout": 0.2,
     "flash_attention": true
-  },
-  "learning_rate": 1e-3, // with baby networks can afford to go a bit higher
-  "max_iters": 5000,
-  "beta2": 0.99, // make a bit bigger because number of tokens per iter is small
-  "warmup_iters": 100, // not super necessary potentially
-  "lr_decay_iters": 5000, // make equal to max_iters usually
-  "min_lr": 1e-4, // learning_rate / 10 usually
-  "backend": "nccl",
-  "device": "cuda",
-  "dtype": "float16",
-  "compile": true
+  }
 }
