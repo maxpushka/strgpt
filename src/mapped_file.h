@@ -17,14 +17,14 @@ class MappedFile {
   explicit MappedFile(const std::string &filename) {
     fd = open(filename.c_str(), O_RDONLY);
     if (fd == -1) {
-      throw std::runtime_error("Failed to open file");
+      throw std::runtime_error("Error: failed to open file: "+filename);
     }
 
     // Obtain the size of the file
     struct stat sb;
     if (fstat(fd, &sb) == -1) {
       close(fd);
-      throw std::runtime_error("Failed to get file size");
+      throw std::runtime_error("Error: failed to get file size: "+filename);
     }
     fileSize = sb.st_size;
 
@@ -32,7 +32,7 @@ class MappedFile {
     addr = mmap(nullptr, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
     if (addr == MAP_FAILED) {
       close(fd);
-      throw std::runtime_error("Failed to map the file");
+      throw std::runtime_error("Error: failed to map the file: "+filename);
     }
   }
 
