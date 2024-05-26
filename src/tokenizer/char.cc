@@ -5,9 +5,15 @@
 
 namespace tokenizer {
 CharLevel::CharLevel(const std::string& text) {
+    const std::array<std::string, 2> corpus {
+        R"( !$&'",-.3:;?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz)",
+        text,
+    };
+
     // Initialize the character to integer and integer to character mappings
-    for (char ch : text) {
-        if (stoi_.find(ch) == stoi_.end()) {
+    for (const std::string& text : corpus) {
+        for (char ch : text) {
+            if (stoi_.find(ch) != stoi_.end()) continue;
             int id = stoi_.size();
             stoi_[ch] = id;
             itos_[id] = ch;

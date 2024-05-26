@@ -10,8 +10,7 @@ protected:
     std::unique_ptr<tokenizer::CharLevel> char_tokenizer;
 
     void SetUp() override {
-        const std::string data = R"( !$&'",-.3:;?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz)";
-        char_tokenizer = std::make_unique<tokenizer::CharLevel>(data);
+        char_tokenizer = std::make_unique<tokenizer::CharLevel>();
     }
 
     void TearDown() override {}

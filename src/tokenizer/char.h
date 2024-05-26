@@ -9,7 +9,7 @@
 namespace tokenizer {
 class CharLevel final {
 public:
-    CharLevel(const std::string& text);
+    CharLevel(const std::string& text = "");
 
     [[nodiscard]] std::vector<int> encode(const std::string& text) const;
 
