@@ -9,17 +9,14 @@ class TokenizerBPE : public testing::Test {
   std::unique_ptr<tokenizer::BPE> bpe_tokenizer;
 
   void SetUp() override {
-    const char *assets_root = std::getenv("ASSETS_ROOT");
-    ASSERT_TRUE(assets_root != nullptr);
+    const char *tokenizer_config = std::getenv("TOKENIZER_CONFIG");
+    ASSERT_TRUE(tokenizer_config != nullptr);
 
     std::stringstream config_path;
-    config_path << assets_root << "/tokenizer.json";
+    config_path << tokenizer_config << "/tokenizer.json";
     std::ifstream config_file(config_path.str(), std::ios::in);
 
-    std::regex re(
-        R"((\'s|\'t|\'re|\'ve|\'m|\'ll|\'d| ?[[:alpha:]]+| ?[[:digit:]]+| ?[^\s[:alpha:][:digit:]]+|\s+(?!\S)|\s+))"
-    );
-    this->bpe_tokenizer = std::make_unique<tokenizer::BPE>(config_file, re);
+    this->bpe_tokenizer = std::make_unique<tokenizer::BPE>(config_file);
   }
 
   void TearDown() override {}
@@ -31,7 +28,7 @@ TEST_F(TokenizerBPE, RegexCompilation) {
   std::string input = text;
 
   std::vector<std::string> v;
-  while (std::regex_search(input, match, bpe_tokenizer->re)) {
+  while (std::regex_search(input, match, bpe_tokenizer->re_)) {
     v.push_back(match.str());
     input = match.suffix().str();
   }
@@ -40,12 +37,12 @@ TEST_F(TokenizerBPE, RegexCompilation) {
 
 TEST_F(TokenizerBPE, BytesToUnicodeConversion) {
   // Validate the size of the maps
-  EXPECT_EQ(bpe_tokenizer->b2u.size(), 256);
-  EXPECT_EQ(bpe_tokenizer->u2b.size(), 256);
+  EXPECT_EQ(bpe_tokenizer->b2u_.size(), 256);
+  EXPECT_EQ(bpe_tokenizer->u2b_.size(), 256);
 
   // Check specific mappings to ensure they are correct
-  EXPECT_EQ(bpe_tokenizer->b2u[0], 0x100);  // Assuming the mapping starts at 0x100 for 0
-  EXPECT_EQ(bpe_tokenizer->u2b[0x100], 0);  // Reverse mapping check
+  EXPECT_EQ(bpe_tokenizer->b2u_[0], 0x100);  // Assuming the mapping starts at 0x100 for 0
+  EXPECT_EQ(bpe_tokenizer->u2b_[0x100], 0);  // Reverse mapping check
 }
 
 TEST_F(TokenizerBPE, ByteEncodeToken) {
@@ -54,8 +51,8 @@ TEST_F(TokenizerBPE, ByteEncodeToken) {
 }
 
 TEST_F(TokenizerBPE, LoadVocab) {
-  auto &t2i = bpe_tokenizer->t2i;
-  auto &i2t = bpe_tokenizer->i2t;
+  auto &t2i = bpe_tokenizer->t2i_;
+  auto &i2t = bpe_tokenizer->i2t_;
 
   EXPECT_GT(t2i.size(), 0);
   EXPECT_GT(i2t.size(), 0);
@@ -76,13 +73,13 @@ TEST_F(TokenizerBPE, LoadVocab) {
 }
 
 TEST_F(TokenizerBPE, LoadMergeRules) {
-  EXPECT_EQ(bpe_tokenizer->bpe_ranks.size(), 50000);
+  EXPECT_EQ(bpe_tokenizer->bpe_ranks_.size(), 50000);
 
-  auto iter = bpe_tokenizer->bpe_ranks.find(
+  auto iter = bpe_tokenizer->bpe_ranks_.find(
     {bpe_tokenizer->utf8_to_wstring("Ġg"),
     bpe_tokenizer->utf8_to_wstring("azed")}
   );
-  EXPECT_NE(iter, bpe_tokenizer->bpe_ranks.end());
+  EXPECT_NE(iter, bpe_tokenizer->bpe_ranks_.end());
   EXPECT_EQ(iter->second, 49998);
 }
 
@@ -95,7 +92,7 @@ TEST_F(TokenizerBPE, GetPairs) {
 }
 
 TEST_F(TokenizerBPE, BPEAlgorithm) {
-  EXPECT_EQ(bpe_tokenizer->bpe_ranks.size(), 50000);
+  EXPECT_EQ(bpe_tokenizer->bpe_ranks_.size(), 50000);
 
   std::vector<std::wstring> result = bpe_tokenizer->bpe(bpe_tokenizer->utf8_to_wstring("annoyingly"));
   EXPECT_EQ(result, std::vector<std::wstring>({L"ann", L"oy", L"ingly"}));

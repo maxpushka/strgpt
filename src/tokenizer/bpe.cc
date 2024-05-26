@@ -1,4 +1,3 @@
-#include "bpe.h"
 #include <codecvt>
 #include <set>
 #include <string>
@@ -7,9 +6,13 @@
 #include <memory>
 #include <locale>
 #include <iostream>
+#include <sstream>
+#include <fstream>
+
+#include "bpe.h"
 
 namespace tokenizer {
-BPE::BPE(std::istream &config_file, std::regex re) : re(std::move(re)) {
+BPE::BPE(std::istream &config_file) {
   using json = nlohmann::json;
 
   json vocab, merges;
@@ -27,7 +30,11 @@ BPE::BPE(std::istream &config_file, std::regex re) : re(std::move(re)) {
 
   load_vocab(vocab);
   load_merge_rules(merges);
-  load_bytes_to_unicode();
+  load_bytes_to_unicode();  
+}
+
+BPE::BPE(std::istream &config_file, std::regex re) : BPE(config_file) {
+  re_ = std::move(re);
 }
 
 std::vector<int> BPE::encode(const std::string &text) const {
@@ -36,7 +43,7 @@ std::vector<int> BPE::encode(const std::string &text) const {
   std::vector<int> ids;
   ids.reserve(result.size());
   for (const auto &s : result) {
-    ids.push_back(t2i.at(s));
+    ids.push_back(t2i_.at(s));
   }
 
   return ids;
@@ -45,21 +52,21 @@ std::vector<int> BPE::encode(const std::string &text) const {
 std::string BPE::decode(const std::vector<int> &ids) const {
   std::string concat;
   for (const int &id : ids) {
-    concat += i2t.at(id);
+    concat += i2t_.at(id);
   }
 
   std::wstring w = utf8_to_wstring(concat);
   std::string r;
   for (const wchar_t &c : w) {
-    r.push_back(char(u2b.at(c)));
+    r.push_back(char(u2b_.at(c)));
   }
   return r;
 }
 
 void BPE::load_vocab(const nlohmann::json &ins) {
   for (const auto &[key, value] : ins.items()) {
-    t2i.insert({key, value});
-    i2t.insert({value, key});
+    t2i_.insert({key, value});
+    i2t_.insert({value, key});
   }
 }
 
@@ -67,7 +74,7 @@ void BPE::load_merge_rules(const nlohmann::json &ins) {
   for (const auto &[key, value] : ins.items()) {
     std::string line = value.get<std::string>();
     int d = line.find(" ");  // merges.txt file use ASCII space
-    bpe_ranks.try_emplace({utf8_to_wstring(line.substr(0, d)),
+    bpe_ranks_.try_emplace({utf8_to_wstring(line.substr(0, d)),
                            utf8_to_wstring(line.substr(d + 1))},
                           std::stoi(key) - 1);
   }
@@ -76,26 +83,26 @@ void BPE::load_merge_rules(const nlohmann::json &ins) {
 void BPE::load_bytes_to_unicode() {
   auto _insert_range = [=, this](int start, int end) {
     for (int c = start; c <= end; c++) {
-      b2u.insert({uint8_t(c), wchar_t(c)});
+      b2u_.insert({uint8_t(c), wchar_t(c)});
     }
   };
 
-  b2u.clear();
+  b2u_.clear();
   _insert_range(L'!', L'~');
   _insert_range(L'¡', L'¬');
   _insert_range(L'®', L'ÿ');
 
   int n = 0;
   for (int b = 0; b < 256; b++) {
-    if (b2u.find(uint8_t(b)) == b2u.end()) {
-      b2u.insert({uint8_t(b), wchar_t(256 + n)});
+    if (b2u_.find(uint8_t(b)) == b2u_.end()) {
+      b2u_.insert({uint8_t(b), wchar_t(256 + n)});
       n++;
     }
   }
 
-  u2b.clear();
-  for (auto e : b2u) {
-    u2b.insert({e.second, e.first});
+  u2b_.clear();
+  for (auto e : b2u_) {
+    u2b_.insert({e.second, e.first});
   }
 }
 
@@ -135,7 +142,7 @@ void BPE::_tokenize(const std::string &text, std::vector<std::string> &result) c
   std::string token;
   std::string input = text;
 
-  while (std::regex_search(input, match, re)) {
+  while (std::regex_search(input, match, re_)) {
     token = match.str();
     input = match.suffix().str();
 
@@ -153,7 +160,7 @@ std::wstring BPE::byte_encode_token(const std::string &token) const {
   result.reserve(token.size());
 
   for (char c : token) {
-    wchar_t wc = b2u.at(uint8_t(c));
+    wchar_t wc = b2u_.at(uint8_t(c));
     result.push_back(wc);
   }
 
@@ -183,8 +190,8 @@ std::vector<std::wstring> BPE::bpe(const std::wstring &token) const {
 
     for (int i = 0; i < pairs.size(); ++i) {
       if (merged.find(i) == merged.end()) {  // pair i is not merged.
-        auto iter = bpe_ranks.find(pairs[i]);
-        int score = iter != bpe_ranks.end() ? iter->second : INT_MAX;
+        auto iter = bpe_ranks_.find(pairs[i]);
+        int score = iter != bpe_ranks_.end() ? iter->second : INT_MAX;
         if (score < min_score) {
           min_score = score;
           to_merge = i;

@@ -30,14 +30,17 @@ using BPERanks = std::unordered_map<std::pair<std::wstring, std::wstring>, int,
 
 class BPE final {
  private:
-  BPERanks bpe_ranks;
-  std::regex re;
-  std::unordered_map<std::string, int> t2i;  // token to id
-  std::unordered_map<int, std::string> i2t;  // id to token
-  std::unordered_map<uint8_t, wchar_t> b2u;
-  std::unordered_map<wchar_t, uint8_t> u2b;
+  BPERanks bpe_ranks_;
+  std::regex re_{
+    R"((\'s|\'t|\'re|\'ve|\'m|\'ll|\'d| ?[[:alpha:]]+| ?[[:digit:]]+| ?[^\s[:alpha:][:digit:]]+|\s+(?!\S)|\s+))"
+  };
+  std::unordered_map<std::string, int> t2i_;  // token to id
+  std::unordered_map<int, std::string> i2t_;  // id to token
+  std::unordered_map<uint8_t, wchar_t> b2u_;
+  std::unordered_map<wchar_t, uint8_t> u2b_;
 
  public:
+  BPE(std::istream &config_file);
   BPE(std::istream &config_file, std::regex re);
 
   [[nodiscard]] std::vector<int> encode(const std::string &text) const;
