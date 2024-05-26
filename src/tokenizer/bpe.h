@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <nlohmann/json.hpp>
+#include "tokenizer/tokenizer.h"
 
 #ifdef UNIT_TEST
 #include <gtest/gtest_prod.h>
@@ -28,7 +29,7 @@ struct hash_pair_wstring {
 using BPERanks = std::unordered_map<std::pair<std::wstring, std::wstring>, int,
                                     hash_pair_wstring>;
 
-class BPE final {
+class BPE final : public Tokenizer {
  private:
   BPERanks bpe_ranks_;
   std::regex re_{

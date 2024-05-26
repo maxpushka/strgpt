@@ -6,8 +6,10 @@
 #include <sstream>
 #include <cassert>
 
+#include "tokenizer/tokenizer.h"
+
 namespace tokenizer {
-class CharLevel final {
+class CharLevel final : public Tokenizer {
 public:
     CharLevel(const std::string& text = "");
 
