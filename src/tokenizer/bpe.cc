@@ -21,11 +21,11 @@ BPE::BPE(std::istream &config_file) {
     vocab = config.at("model").at("vocab");
     merges = config.at("model").at("merges");
   } catch (json::parse_error &e) {
-    std::cerr << "Failed to parse tokenizer config: " << e.what() << std::endl;
+    throw std::runtime_error("Error: failed to parse tokenizer config: " + std::string{e.what()});
   } catch (json::out_of_range &e) {
-    std::cerr << "JSON key error: " << e.what() << std::endl;
+    throw std::runtime_error("Error: JSON key error: " + std::string{e.what()});
   } catch (json::exception &e) {
-    std::cerr << "General JSON error: " << e.what() << std::endl;
+    throw std::runtime_error("Error: general JSON error: " + std::string{e.what()});
   }
 
   load_vocab(vocab);

@@ -4,8 +4,8 @@
 #include <regex>
 #include <unordered_map>
 #include <vector>
-
 #include <nlohmann/json.hpp>
+
 #include "tokenizer/tokenizer.h"
 
 #ifdef UNIT_TEST

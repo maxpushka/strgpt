@@ -3,7 +3,7 @@
 #include <string>
 #include <nlohmann/json.hpp>
 
-#include "model.h"
+#include "model/model.h"
 
 namespace train {
 struct DataConfig {

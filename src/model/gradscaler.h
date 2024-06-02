@@ -3,9 +3,7 @@
 #include <cassert>
 #include <iterator>
 #include <type_traits>
-
 #include <torch/torch.h>
-#include <torch/serialize/archive.h>
 
 namespace torch::amp {
 

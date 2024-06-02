@@ -68,6 +68,13 @@ if (NOT status_code EQUAL 0)
     message(FATAL_ERROR "Failed to download file: ${download_status}")
 endif ()
 
+# ------------------- args ---------------------
+FetchContent_Declare(
+        args
+        URL https://github.com/Taywee/args/archive/cc2368ca0d8a962862c96c00fe919e1480050f51.zip
+)
+FetchContent_MakeAvailable(args)
+
 # ------------------- Google Test ---------------------
 FetchContent_Declare(
         googletest
@@ -82,15 +89,18 @@ FetchContent_MakeAvailable(googletest)
 # ------------------- Main Binary ---------------------
 add_executable(${PROJECT_NAME}
         src/main.cc
+        src/command/train.cc
+        src/command/sample.cc
         src/tokenizer/char.cc
         src/tokenizer/bpe.cc
-        src/model.cc
-        src/train.cc
+        src/model/model.cc
+        src/model/train.cc
 )
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 target_link_libraries(${PROJECT_NAME}
         "${TORCH_LIBRARIES}"
         nlohmann_json::nlohmann_json
+        args
 )
 
 # ------------------- Tests ---------------------
