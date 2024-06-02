@@ -257,15 +257,21 @@ void train_model(std::shared_ptr<model::GPT> model,
                  std::shared_ptr<torch::optim::Optimizer> optimizer,
                  const Config &cfg, torch::Device device) {
   // Load checkpoint, if available
-  if (cfg.train.init_from == "resume") {
-    try {
-      Checkpoint ckpt{cfg.train.out_dir, device, true};
-      model = ckpt.model;
-      optimizer = ckpt.optimizer;
-    } catch (std::runtime_error &e) {
-      std::cout << e.what() << std::endl
-                << "Starting from scratch" << std::endl;
-    }
+  switch (cfg.train.init_from) {
+    case InitFrom::Scratch:
+      break;
+    case InitFrom::Resume:
+      try {
+        Checkpoint ckpt{cfg.train.out_dir, device, true};
+        model = ckpt.model;
+        optimizer = ckpt.optimizer;
+      } catch (std::runtime_error &e) {
+        std::cout << e.what() << std::endl
+                  << "Starting from scratch" << std::endl;
+      }
+      break;
+    default:
+      throw std::runtime_error("Error: invalid initialization method");
   }
 
   // Read the dataset

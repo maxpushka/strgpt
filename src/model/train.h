@@ -17,6 +17,18 @@ struct DataConfig {
                                               train_file, val_file);
 };
 
+enum class InitFrom {
+  Scratch,
+  Resume,
+  // TODO: add support for 'gpt2*'
+  Invalid = -1,
+};
+NLOHMANN_JSON_SERIALIZE_ENUM(InitFrom, {
+                                           {InitFrom::Invalid, nullptr},
+                                           {InitFrom::Scratch, "scratch"},
+                                           {InitFrom::Resume, "resume"},
+                                       });
+
 struct TrainConfig {
   std::string out_dir = "out";
   int eval_interval = 2000;
@@ -26,7 +38,7 @@ struct TrainConfig {
   int log_interval = 1;
   bool always_save_checkpoint =
       true;  // if true, always save a checkpoint after each eval
-  std::string init_from = "scratch";  // 'scratch' or 'resume' or 'gpt2*'
+  InitFrom init_from = InitFrom::Scratch;
   int gradient_accumulation_steps =
       5 * 8;  // used to simulate larger batch sizes
   int batch_size =
