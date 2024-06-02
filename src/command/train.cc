@@ -10,7 +10,7 @@
 #include "torch/torch.h"
 
 namespace command {
-void do_train(const std::string &config_path) {
+void train_model(const std::string &config_path) {
   // Build config
   if (!std::filesystem::exists(config_path)) {
     throw std::runtime_error(

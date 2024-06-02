@@ -22,13 +22,15 @@ int main(int argc, const char **argv) {
             subparser, "checkpoint", "Path to checkpoint directory",
             {"checkpoint"}, args::Options::Required);
         args::ValueFlag<std::string> device(
-            subparser, "device", "Device to run the model on (cpu | cuda | mps, etc.)",
+            subparser, "device",
+            "Device to run the model on (cpu | cuda | mps, etc.)",
             {"checkpoint"}, args::Options::Required);
         args::HelpFlag help(subparser, "help", "Display help information",
                             {'h', "help"});
 
         subparser.Parse();
-        command::do_sample(args::get(checkpoint), torch::Device{args::get(device)});
+        command::sample_model(args::get(checkpoint),
+                              torch::Device{args::get(device)});
       });
 
   args::Command train(
@@ -41,7 +43,7 @@ int main(int argc, const char **argv) {
                              {"help"});
 
         subparser.Parse();
-        command::do_train(args::get(config));
+        command::train_model(args::get(config));
       });
 
   try {
