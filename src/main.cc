@@ -16,11 +16,23 @@ int handle_train_command(const std::filesystem::path &config_path);
 int handle_sample_command(const std::filesystem::path &checkpoint_dir);
 
 int main(int argc, char **argv) {
+  const std::string usage = R"(Usage: strgpt <command> <path>
+
+Commands:
+  train   /path/to/config.json       Train the model with the specified config file
+  sample  /path/to/checkpoint/dir    Sample from the model using the specified checkpoint directory
+
+Examples:
+  strgpt train  ./config.json
+  strgpt sample ./out/checkpoint_250_loss_2.686582
+)";
+
+  if (argc == 1) {
+    std::cout << usage << std::endl;
+    return 1;
+  }
   if (argc != 3) {
-    std::cerr << "Error: insufficient arguments provided\n\n"
-              << "Usage: \n"
-              << "  strgpt train /path/to/config.json\n"
-              << "  strgpt sample /path/to/checkpoint/directory" << std::endl;
+    std::cerr << "Error: insufficient arguments provided\n\n" << usage << std::endl;
     return 1;
   }
 
@@ -32,10 +44,7 @@ int main(int argc, char **argv) {
   } else if (command == "sample") {
     return handle_sample_command(path);
   } else {
-    std::cerr << "Error: unknown command\n\n"
-              << "Usage: \n"
-              << "  strgpt train /path/to/config.json\n"
-              << "  strgpt sample /path/to/checkpoint/directory" << std::endl;
+    std::cerr << "Error: unknown command\n\n" << usage << std::endl;
     return 1;
   }
 }
