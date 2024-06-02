@@ -1,4 +1,4 @@
-#include "bpe.h"
+#include "tokenizer/bpe.h"
 
 #include <codecvt>
 #include <fstream>
@@ -109,19 +109,13 @@ void BPE::load_bytes_to_unicode() {
 }
 
 std::wstring BPE::utf8_to_wstring(const std::string &str) {
-  std::wstring_convert<
-      std::conditional_t<sizeof(wchar_t) == 4, std::codecvt_utf8<wchar_t>,
-                         std::codecvt_utf8_utf16<wchar_t>>>
-      converter;
-  return converter.from_bytes(str);
+  std::filesystem::path wstr{str};
+  return wstr.wstring();
 }
 
 std::string BPE::wstring_to_utf8(const std::wstring &wstr) {
-  std::wstring_convert<
-      std::conditional_t<sizeof(wchar_t) == 4, std::codecvt_utf8<wchar_t>,
-                         std::codecvt_utf8_utf16<wchar_t>>>
-      converter;
-  return converter.to_bytes(wstr);
+  std::filesystem::path str{wstr};
+  return str.string();
 }
 
 std::string BPE::utf8(wchar_t c) {
