@@ -23,11 +23,9 @@ enum class InitFrom {
   // TODO: add support for 'gpt2*'
   Invalid = -1,
 };
-NLOHMANN_JSON_SERIALIZE_ENUM(InitFrom, {
-                                           {InitFrom::Invalid, nullptr},
-                                           {InitFrom::Scratch, "scratch"},
-                                           {InitFrom::Resume, "resume"},
-                                       });
+NLOHMANN_JSON_SERIALIZE_ENUM(InitFrom, {{InitFrom::Invalid, nullptr},
+                                        {InitFrom::Scratch, "scratch"},
+                                        {InitFrom::Resume, "resume"}});
 
 struct TrainConfig {
   std::string out_dir = "out";

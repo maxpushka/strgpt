@@ -1,5 +1,4 @@
 #include <cstdlib>
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -8,6 +7,7 @@
 
 #include "args.hxx"
 #include "command/command.h"
+#include "tokenizer/tokenizer.h"
 #include "torch/torch.h"
 
 int main(int argc, const char **argv) {
@@ -18,7 +18,7 @@ int main(int argc, const char **argv) {
       parser, "sample",
       "Sample from the model using the specified checkpoint directory",
       [&](args::Subparser &subparser) {
-        args::ValueFlag<std::filesystem::path> checkpoint(
+        args::ValueFlag<std::string> checkpoint(
             subparser, "checkpoint", "Path to checkpoint directory",
             {"checkpoint"}, args::Options::Required);
         args::ValueFlag<std::string> device(
@@ -36,14 +36,37 @@ int main(int argc, const char **argv) {
   args::Command train(
       parser, "train", "Train the model with the specified config file",
       [&](args::Subparser &subparser) {
-        args::ValueFlag<std::filesystem::path> config(
-            subparser, "config", "Path to config file", {"config"},
-            args::Options::Required);
+        args::ValueFlag<std::string> config(subparser, "config",
+                                            "Path to config file", {"config"},
+                                            args::Options::Required);
         args::Flag show_help(subparser, "help", "Display help information",
                              {"help"});
 
         subparser.Parse();
         command::train_model(args::get(config));
+      });
+
+  std::unordered_map<std::string, tokenizer::Type> tokenizers_map{
+      {"char", tokenizer::Type::Char}, {"bar", tokenizer::Type::BPE}};
+  args::Command dataset(
+      parser, "prepare", "Build a new dataset",
+      [&](args::Subparser &subparser) {
+        args::ValueFlag<std::string> url(subparser, "url",
+                                         "URL to fetch dataset from", {"url"},
+                                         args::Options::Required);
+        args::ValueFlag<std::string> out_dir(
+            subparser, "out", "Path to directory store the dataset", {"out"},
+            args::Options::Required);
+        args::MapFlag<std::string, tokenizer::Type> tok(
+            subparser, "tokenizer",
+            "Tokenizer type to use for building dataset", {"tok"},
+            tokenizers_map, args::Options::Required);
+        args::Flag show_help(subparser, "help", "Display help information",
+                             {"help"});
+
+        subparser.Parse();
+        command::prepare_data(args::get(url), args::get(out_dir),
+                              args::get(tok));
       });
 
   try {
@@ -52,8 +75,7 @@ int main(int argc, const char **argv) {
     std::cout << parser;
     return 0;
   } catch (const args::Error &e) {
-    std::cerr << e.what() << std::endl;
-    std::cerr << parser;
+    std::cerr << e.what() << std::endl << parser;
     return 1;
   }
 

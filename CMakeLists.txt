@@ -57,6 +57,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 # ------------------- JSON ---------------------
 FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
 FetchContent_MakeAvailable(json)
+find_package(nlohmann_json REQUIRED)
 
 file(DOWNLOAD # Download tokenizer config
         "https://huggingface.co/gpt2/raw/main/tokenizer.json"
@@ -75,6 +76,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(args)
 
+# ------------------- curl ---------------------
+FetchContent_Declare(
+        curl
+        URL https://github.com/curl/curl/releases/download/curl-8_8_0/curl-8.8.0.zip
+)
+FetchContent_MakeAvailable(curl)
+
+list(APPEND CMAKE_PREFIX_PATH "${curl_SOURCE_DIR}")
+
+find_package(CURL REQUIRED)
+include_directories(${CURL_INCLUDE_DIR})
+
 # ------------------- Google Test ---------------------
 FetchContent_Declare(
         googletest
@@ -91,6 +104,7 @@ add_executable(${PROJECT_NAME}
         src/main.cc
         src/command/train.cc
         src/command/sample.cc
+        src/command/dataset.cc
         src/tokenizer/char.cc
         src/tokenizer/bpe.cc
         src/model/model.cc
@@ -100,7 +114,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE src)
 target_link_libraries(${PROJECT_NAME}
         "${TORCH_LIBRARIES}"
         nlohmann_json::nlohmann_json
-        args
+        taywee::args
+        ${CURL_LIBRARIES}
 )
 
 # ------------------- Tests ---------------------

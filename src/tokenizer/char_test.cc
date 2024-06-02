@@ -52,10 +52,16 @@ TEST_F(TokenizerCharLevel, EncodeDecodeConsistency) {
 
 TEST_F(TokenizerCharLevel, EncodeUnknownCharacter) {
   std::string text = "@";  // Assuming '@' is not in the initial data set
-  EXPECT_THROW(char_tokenizer->encode(text), std::runtime_error);
+  // Basically, casting to void tells the compiler
+  // "Yes I know I'm discarding this, yes I'm sure of it."
+  // Just a hacky way to intentionally discard a [[nodiscard]] value
+  EXPECT_THROW(static_cast<void>(char_tokenizer->encode(text)), std::runtime_error);
 }
 
 TEST_F(TokenizerCharLevel, DecodeUnknownID) {
   std::vector<int> ids = {9999};  // Assuming 9999 is not a valid ID
-  EXPECT_THROW(char_tokenizer->decode(ids), std::runtime_error);
+  // Basically, casting to void tells the compiler
+  // "Yes I know I'm discarding this, yes I'm sure of it."
+  // Just a hacky way to intentionally discard a [[nodiscard]] value
+  EXPECT_THROW(static_cast<void>(char_tokenizer->decode(ids)), std::runtime_error);
 }

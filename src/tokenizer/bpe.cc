@@ -39,7 +39,7 @@ BPE::BPE(std::istream &config_file, std::regex re) : BPE(config_file) {
   re_ = std::move(re);
 }
 
-std::vector<int> BPE::encode(const std::string &text) const {
+[[nodiscard]] std::vector<int> BPE::encode(const std::string &text) const {
   std::vector<std::string> result = tokenize(text);
 
   std::vector<int> ids;
@@ -51,7 +51,7 @@ std::vector<int> BPE::encode(const std::string &text) const {
   return ids;
 }
 
-std::string BPE::decode(const std::vector<int> &ids) const {
+[[nodiscard]] std::string BPE::decode(const std::vector<int> &ids) const {
   std::string concat;
   for (const int &id : ids) {
     concat += i2t_.at(id);
