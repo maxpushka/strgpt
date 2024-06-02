@@ -350,35 +350,37 @@ double GPT::estimate_mfu(int64_t fwdbwd_per_iter, double dt) const {
 // the sequence max_new_tokens times, feeding the predictions back into the model each time.
 // Most likely you'll want to make sure to be in model.eval() mode of operation for this.
 torch::Tensor GPT::generate(torch::Tensor idx, int64_t max_new_tokens, double temperature, int64_t top_k) {
-  torch::NoGradGuard no_grad;
-  for (int64_t i = 0; i < max_new_tokens; ++i) {
-    // if the sequence context is growing too long we must crop it at block_size
-    namespace I = torch::indexing;
-    auto idx_cond =
-        (idx.size(1) <= config.block_size) ? idx : idx.index({I::Slice(), I::Slice(-config.block_size, I::None)});
+    torch::NoGradGuard no_grad;
+    auto block_size = config.block_size;
 
-    // forward the model to get the logits for the index in the sequence
-    auto [logits, _] = forward(idx_cond);
+    for (int64_t i = 0; i < max_new_tokens; ++i) {
+        // If the sequence context is growing too long, we must crop it at block_size
+        auto idx_cond = idx.size(1) <= block_size ? idx : idx.slice(1, idx.size(1) - block_size, idx.size(1));
 
-    // pluck the logits at the final step and scale by desired temperature
-    logits = logits.index({I::Slice(), -1, I::Slice()}) / temperature;
+        // Forward the model to get the logits for the index in the sequence
+        auto [logits, _] = forward(idx_cond);
 
-    // optionally crop the logits to only the top k options
-    if (top_k > 0) {
-      auto v = std::get<0>(torch::topk(logits, std::min(top_k, logits.size(-1))));
-      logits.masked_fill_(logits < v.index({I::Slice(), torch::tensor({-1})}), -std::numeric_limits<float>::infinity());
+        // Pluck the logits at the final step and scale by desired temperature
+        logits = logits.slice(1, logits.size(1) - 1, logits.size(1)) / temperature;
+
+        // Optionally crop the logits to only the top k options
+        if (top_k > 0) {
+            top_k = std::min(top_k, logits.size(-1));
+            auto top_k_values = std::get<0>(torch::topk(logits, top_k, -1));
+            auto min_top_k_value = top_k_values.slice(-1, top_k - 1, top_k);
+            logits = torch::where(logits < min_top_k_value, torch::full_like(logits, -std::numeric_limits<float>::infinity()), logits);
+        }
+
+        // Apply softmax to convert logits to (normalized) probabilities
+        auto probs = torch::softmax(logits, -1);
+
+        // Sample from the distribution
+        auto idx_next = torch::multinomial(probs, 1);
+
+        // Append sampled index to the running sequence and continue
+        idx = torch::cat({idx, idx_next}, 1);
     }
 
-    // apply softmax to convert logits to (normalized) probabilities
-    auto probs = torch::softmax(logits, -1);
-
-    // sample from the distribution
-    auto idx_next = torch::multinomial(probs, 1);
-
-    // append sampled index to the running sequence and continue
-    idx = torch::cat({idx, idx_next}, 1);
-  }
-
-  return idx;
+    return idx;
 }
 }
