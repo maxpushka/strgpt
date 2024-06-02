@@ -1,7 +1,10 @@
-#include "bpe.h"
-#include <gtest/gtest.h>
+#include "tokenizer/bpe.h"
+
 #include <fstream>
 #include <memory>
+#include <string>
+
+#include "gtest/gtest.h"
 
 namespace tokenizer {
 class TokenizerBPE : public testing::Test {
@@ -41,7 +44,8 @@ TEST_F(TokenizerBPE, BytesToUnicodeConversion) {
   EXPECT_EQ(bpe_tokenizer->u2b_.size(), 256);
 
   // Check specific mappings to ensure they are correct
-  EXPECT_EQ(bpe_tokenizer->b2u_[0], 0x100);  // Assuming the mapping starts at 0x100 for 0
+  EXPECT_EQ(bpe_tokenizer->b2u_[0],
+            0x100);  // Assuming the mapping starts at 0x100 for 0
   EXPECT_EQ(bpe_tokenizer->u2b_[0x100], 0);  // Reverse mapping check
 }
 
@@ -58,7 +62,8 @@ TEST_F(TokenizerBPE, LoadVocab) {
   EXPECT_GT(i2t.size(), 0);
 
   // Check specific mappings to ensure they are correct
-  // This assumes specific entries exist; adjust according to actual vocab content
+  // This assumes specific entries exist.
+  // Adjust according to actual vocab content.
   int expected_id_for_token = 42;
   std::string expected_token = "K";
   EXPECT_EQ(t2i[expected_token], expected_id_for_token);
@@ -75,10 +80,9 @@ TEST_F(TokenizerBPE, LoadVocab) {
 TEST_F(TokenizerBPE, LoadMergeRules) {
   EXPECT_EQ(bpe_tokenizer->bpe_ranks_.size(), 50000);
 
-  auto iter = bpe_tokenizer->bpe_ranks_.find(
-    {bpe_tokenizer->utf8_to_wstring("Ġg"),
-    bpe_tokenizer->utf8_to_wstring("azed")}
-  );
+  auto iter =
+      bpe_tokenizer->bpe_ranks_.find({bpe_tokenizer->utf8_to_wstring("Ġg"),
+                                      bpe_tokenizer->utf8_to_wstring("azed")});
   EXPECT_NE(iter, bpe_tokenizer->bpe_ranks_.end());
   EXPECT_EQ(iter->second, 49998);
 }
@@ -94,7 +98,8 @@ TEST_F(TokenizerBPE, GetPairs) {
 TEST_F(TokenizerBPE, BPEAlgorithm) {
   EXPECT_EQ(bpe_tokenizer->bpe_ranks_.size(), 50000);
 
-  std::vector<std::wstring> result = bpe_tokenizer->bpe(bpe_tokenizer->utf8_to_wstring("annoyingly"));
+  std::vector<std::wstring> result =
+      bpe_tokenizer->bpe(bpe_tokenizer->utf8_to_wstring("annoyingly"));
   EXPECT_EQ(result, std::vector<std::wstring>({L"ann", L"oy", L"ingly"}));
 }
 
@@ -138,4 +143,4 @@ TEST_F(TokenizerBPE, HelloWorld) {
   ASSERT_EQ(encoded.size(), 4);
   EXPECT_EQ(encoded, expected);
 }
-}
+}  // namespace tokenizer

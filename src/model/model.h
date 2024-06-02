@@ -1,21 +1,29 @@
 #pragma once
 
-#include <torch/torch.h>
 #include <cmath>
-#include <nlohmann/json.hpp>
+#include <memory>
+#include <tuple>
+#include <utility>
+
+#include "nlohmann/json.hpp"
+#include "torch/torch.h"
 
 namespace model {
 struct Config {
   int64_t vocab_size = 1024;
-  int64_t block_size = 50304; // GPT-2 vocab_size of 50257, padded up to nearest multiple of 64 for efficiency
+  int64_t block_size = 50304;  // GPT-2 vocab_size of 50257, padded up to
+                               // nearest multiple of 64 for efficiency
   int64_t n_layer = 12;
   int64_t n_head = 12;
   int64_t n_embd = 768;
   double dropout = 0.0;
-  bool bias = true; // true: bias in Linears and LayerNorms, like GPT-2. false: a bit better and faster
+  bool bias = true;  // true: bias in Linears and LayerNorms, like GPT-2. false:
+                     // a bit better and faster
   bool flash_attention = true;
 
-  NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(Config, vocab_size, block_size, n_layer, n_head, n_embd, dropout, bias, flash_attention)
+  NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(Config, vocab_size, block_size,
+                                              n_layer, n_head, n_embd, dropout,
+                                              bias, flash_attention)
 };
 
 class LayerNormImpl : public torch::nn::Module {
@@ -29,7 +37,7 @@ class LayerNormImpl : public torch::nn::Module {
   torch::Tensor forward(torch::Tensor input);
 };
 
-TORCH_MODULE(LayerNorm); // Wrapper to create shared_ptr<LayerNormImpl>
+TORCH_MODULE(LayerNorm);  // Wrapper to create shared_ptr<LayerNormImpl>
 
 class CausalSelfAttentionImpl : public torch::nn::Module {
  private:
@@ -44,7 +52,7 @@ class CausalSelfAttentionImpl : public torch::nn::Module {
   torch::Tensor bias;
 
  public:
-  CausalSelfAttentionImpl(const Config &config);
+  explicit CausalSelfAttentionImpl(const Config& config);
 
   torch::Tensor forward(torch::Tensor x);
 };
@@ -53,8 +61,8 @@ TORCH_MODULE(CausalSelfAttention);
 
 class MLPImpl : public torch::nn::Module {
  private:
-  torch::nn::Linear c_fc;   // First fully connected layer
-  torch::nn::Linear c_proj; // Output projection layer
+  torch::nn::Linear c_fc;    // First fully connected layer
+  torch::nn::Linear c_proj;  // Output projection layer
   torch::nn::Dropout dropout;
 
  public:
@@ -63,34 +71,34 @@ class MLPImpl : public torch::nn::Module {
   torch::Tensor forward(torch::Tensor x);
 };
 
-TORCH_MODULE(MLP); // Wrapper to create shared_ptr<MLPImpl>
+TORCH_MODULE(MLP);  // Wrapper to create shared_ptr<MLPImpl>
 
 class BlockImpl : public torch::nn::Module {
  private:
-  LayerNorm ln_1; // First layer normalization
-  LayerNorm ln_2; // Second layer normalization
-  CausalSelfAttention attn; // Causal self-attention module
-  MLP mlp; // Multi-layer perceptron module
+  LayerNorm ln_1;            // First layer normalization
+  LayerNorm ln_2;            // Second layer normalization
+  CausalSelfAttention attn;  // Causal self-attention module
+  MLP mlp;                   // Multi-layer perceptron module
 
  public:
-  BlockImpl(const Config &config);
+  explicit BlockImpl(const Config& config);
 
   torch::Tensor forward(torch::Tensor x);
 };
 
-TORCH_MODULE(Block); // Wrapper to create shared_ptr<BlockImpl>
+TORCH_MODULE(Block);  // Wrapper to create shared_ptr<BlockImpl>
 
 struct TransformerImpl : public torch::nn::Module {
-    torch::nn::Embedding wte;
-    torch::nn::Embedding wpe;
-    torch::nn::Dropout drop;
-    torch::nn::ModuleList h;
-    LayerNorm ln_f;
+  torch::nn::Embedding wte;
+  torch::nn::Embedding wpe;
+  torch::nn::Dropout drop;
+  torch::nn::ModuleList h;
+  LayerNorm ln_f;
 
-    TransformerImpl(const Config& config);
+  explicit TransformerImpl(const Config& config);
 };
 
-TORCH_MODULE(Transformer); // Wrapper to create shared_ptr<BlockImpl>
+TORCH_MODULE(Transformer);  // Wrapper to create shared_ptr<BlockImpl>
 
 class GPT : public torch::nn::Module {
   Config config;
@@ -98,20 +106,21 @@ class GPT : public torch::nn::Module {
   torch::nn::Linear lm_head;
 
  public:
-  GPT(const Config &config);
+  explicit GPT(const Config& config);
 
-  void init_weights(torch::nn::Module& module);
+  void init_weights(torch::nn::Module* module);
 
-  std::tuple<torch::Tensor, torch::Tensor> forward(const torch::Tensor& idx, const torch::optional<torch::Tensor>& targets = {});
+  std::tuple<torch::Tensor, torch::Tensor> forward(
+      const torch::Tensor& idx,
+      const torch::optional<torch::Tensor>& targets = {});
 
   int64_t get_num_params(bool non_embedding = true) const;
   void crop_block_size(int64_t block_size);
   std::shared_ptr<torch::optim::Optimizer> configure_optimizers(
-    double weight_decay,
-    double learning_rate,
-    std::tuple<double, double> betas,
-    const torch::Device& device_type);
+      double weight_decay, double learning_rate,
+      std::tuple<double, double> betas, const torch::Device& device_type);
   double estimate_mfu(int64_t fwdbwd_per_iter, double dt) const;
-  torch::Tensor generate(torch::Tensor idx, int64_t max_new_tokens, double temperature = 1.0, int64_t top_k = -1);
+  torch::Tensor generate(torch::Tensor idx, int64_t max_new_tokens,
+                         double temperature = 1.0, int64_t top_k = -1);
 };
-}
+}  // namespace model

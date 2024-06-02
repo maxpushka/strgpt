@@ -1,12 +1,12 @@
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <stdexcept>
-#include <torch/torch.h>
 
 #include "command/command.h"
-#include "tokenizer/char.h"
-#include "tokenizer/bpe.h"
 #include "model/train.h"
+#include "tokenizer/bpe.h"
+#include "tokenizer/char.h"
+#include "torch/torch.h"
 
 namespace command {
 std::string get_editor_from_env() {
@@ -16,9 +16,10 @@ std::string get_editor_from_env() {
 
 std::string get_prompt_from_editor() {
   std::string editor = get_editor_from_env();
-  std::filesystem::path temp_file = std::filesystem::temp_directory_path() / "temp_prompt.txt";
+  std::filesystem::path temp_file =
+      std::filesystem::temp_directory_path() / "temp_prompt.txt";
 
-  std::ofstream(temp_file).close(); // create the temporary file
+  std::ofstream(temp_file).close();  // create the temporary file
 
   // Build the command to open the editor
   std::string command = editor + " " + temp_file.string();
@@ -39,8 +40,8 @@ std::string get_prompt_from_editor() {
   return buffer.str();
 }
 
-void do_sample(const std::filesystem::path &checkpoint_dir) {
-  torch::Device device = torch::kMPS; // TODO: move to command options
+void do_sample(const std::string &checkpoint_dir) {
+  torch::Device device = torch::kMPS;  // TODO: move to command options
   train::Checkpoint ckpt{checkpoint_dir, device, false};
   auto &model = ckpt.model;
 
@@ -63,7 +64,8 @@ void do_sample(const std::filesystem::path &checkpoint_dir) {
   } else {
     const char *tokenizer_config = std::getenv("TOKENIZER_CONFIG");
     if (tokenizer_config == nullptr) {
-      throw std::runtime_error("Error: environment variable TOKENIZER_CONFIG is not set");
+      throw std::runtime_error(
+          "Error: environment variable TOKENIZER_CONFIG is not set");
     }
 
     std::stringstream config_path;
@@ -75,33 +77,39 @@ void do_sample(const std::filesystem::path &checkpoint_dir) {
 
   // Tokenize the prompt
   std::vector<int> tokens_int = tok->encode(prompt);
-  std::cout << "Prompt: " << prompt << std::endl
-            << "Tokens: ";
+  std::cout << "Prompt: " << prompt << "\nTokens: ";
   for (const int token : tokens_int) {
     std::cout << token << ' ';
   }
   std::cout << std::endl;
 
-  // Convert tokens to tensor
-  // Note: from_blob does not take ownership of the data, so the data must stay in scope
+  // Convert tokens to tensor.
+  // Note: from_blob does not take ownership of the data,
+  // so the data must stay in scope.
   auto X =
-      torch::from_blob(tokens_int.data(), {static_cast<long long>(tokens_int.size())}, torch::kInt64)
-        .clone()
-        .to(torch::kCPU)
-        .contiguous();
+      torch::from_blob(tokens_int.data(),
+                       {static_cast<int64_t>(tokens_int.size())}, torch::kInt64)
+          .clone()
+          .to(device)
+          .contiguous();
 
-  std::vector<int64_t> x_list(X.data_ptr<int64_t>(), X.data_ptr<int64_t>() + X.numel());
+  std::vector<int64_t> x_list(X.data_ptr<int64_t>(),
+                              X.data_ptr<int64_t>() + X.numel());
   std::cout << x_list << std::endl;
 
   // Run inference on the model
-  constexpr int num_samples = 10; // num of samples to draw
-  constexpr int max_new_tokens = 20; // number of tokens generated in each sample
-  constexpr double temperature = 0.8; // 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
-  constexpr int top_k = 200; // retain only the top_k most likely tokens, clamp others to have 0 probability
+  constexpr int num_samples = 10;  // num of samples to draw
+  constexpr int max_new_tokens =
+      20;  // number of tokens generated in each sample
+  constexpr double temperature = 0.8;  // 1.0 = no change, < 1.0 = less random,
+                                       // > 1.0 = more random, in predictions
+  constexpr int top_k = 200;  // retain only the top_k most likely tokens, clamp
+                              // others to have 0 probability
   model->eval();
   for (size_t k = 0; k < num_samples; k++) {
     auto Y = model->generate(X, max_new_tokens, temperature, top_k);
-//    std::vector<int64_t> y_list(Y[0].data_ptr<double>(), Y[0].data_ptr<int64_t>() + Y[0].numel());
+    //    std::vector<int64_t> y_list(Y[0].data_ptr<double>(),
+    //    Y[0].data_ptr<int64_t>() + Y[0].numel());
     Y = Y.contiguous();
     auto p = Y.options();
     std::cout << p << std::endl;
@@ -111,4 +119,3 @@ void do_sample(const std::filesystem::path &checkpoint_dir) {
   }
 }
 }  // namespace command
-

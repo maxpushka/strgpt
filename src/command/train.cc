@@ -1,25 +1,28 @@
-#include <iostream>
+#include "model/train.h"
+
 #include <filesystem>
 #include <fstream>
-#include <nlohmann/json.hpp>
-#include <torch/torch.h>
+#include <iostream>
 
 #include "command/command.h"
-#include "model/train.h"
 #include "model/model.h"
+#include "nlohmann/json.hpp"
+#include "torch/torch.h"
 
 namespace command {
-void do_train(const std::filesystem::path &config_path) {
+void do_train(const std::string &config_path) {
   // Build config
   if (!std::filesystem::exists(config_path)) {
-    throw std::runtime_error("Error: config file does not exist at a given path: " + config_path.string());
+    throw std::runtime_error(
+        "Error: config file does not exist at a given path: " + config_path);
   }
 
   std::ifstream config_file{config_path};
-  nlohmann::json config_json = nlohmann::json::parse(config_file,
-      /* callback */ nullptr,
-      /* allow_exceptions */ true,
-      /* ignore_comments */ true);
+  nlohmann::json config_json =
+      nlohmann::json::parse(config_file,
+                            /* callback */ nullptr,
+                            /* allow_exceptions */ true,
+                            /* ignore_comments */ true);
   train::Config config = config_json.get<train::Config>();
 
   // Initialize the environment based on the provided configuration
@@ -35,9 +38,10 @@ void do_train(const std::filesystem::path &config_path) {
 
   // Initialize the optimizer
   auto options = torch::optim::AdamOptions(config.train.learning_rate)
-      .betas({config.train.beta1, config.train.beta2})
-      .weight_decay(config.train.weight_decay);
-  auto optimizer = std::make_shared<torch::optim::Adam>(model->parameters(), options);
+                     .betas({config.train.beta1, config.train.beta2})
+                     .weight_decay(config.train.weight_decay);
+  auto optimizer =
+      std::make_shared<torch::optim::Adam>(model->parameters(), options);
   std::cout << "Optimizer initialized." << std::endl;
 
   // Run training loop

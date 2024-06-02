@@ -2,14 +2,16 @@
 
 #include <memory>
 #include <regex>
+#include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
-#include <nlohmann/json.hpp>
 
+#include "nlohmann/json.hpp"
 #include "tokenizer/tokenizer.h"
 
 #ifdef UNIT_TEST
-#include <gtest/gtest_prod.h>
+#include "gtest/gtest_prod.h"
 #endif
 
 namespace tokenizer {
@@ -33,8 +35,7 @@ class BPE final : public Tokenizer {
  private:
   BPERanks bpe_ranks_;
   std::regex re_{
-    R"((\'s|\'t|\'re|\'ve|\'m|\'ll|\'d| ?[[:alpha:]]+| ?[[:digit:]]+| ?[^\s[:alpha:][:digit:]]+|\s+(?!\S)|\s+))"
-  };
+      R"((\'s|\'t|\'re|\'ve|\'m|\'ll|\'d| ?[[:alpha:]]+| ?[[:digit:]]+| ?[^\s[:alpha:][:digit:]]+|\s+(?!\S)|\s+))"};
   std::unordered_map<std::string, int> t2i_;  // token to id
   std::unordered_map<int, std::string> i2t_;  // id to token
   std::unordered_map<uint8_t, wchar_t> b2u_;
@@ -49,7 +50,6 @@ class BPE final : public Tokenizer {
   [[nodiscard]] std::string decode(const std::vector<int> &ids) const;
 
  private:
-
   void load_vocab(const nlohmann::json &ins);
 
   void load_merge_rules(const nlohmann::json &ins);
@@ -62,16 +62,19 @@ class BPE final : public Tokenizer {
 
   [[nodiscard]] static std::string wstring_to_utf8(const std::wstring &str);
 
-  [[nodiscard]] std::vector<std::string> tokenize(const std::string &text) const;
+  [[nodiscard]] std::vector<std::string> tokenize(
+      const std::string &text) const;
 
-  void _tokenize(const std::string &text, std::vector<std::string> &result) const;
+  void _tokenize(const std::string &text,
+                 std::vector<std::string> *result) const;
 
   // Given a token as a UTF8 string, encode each byte into an wchar_t
   [[nodiscard]] std::wstring byte_encode_token(const std::string &token) const;
 
   [[nodiscard]] std::vector<std::wstring> bpe(const std::wstring &token) const;
 
-  static std::vector<std::pair<std::wstring, std::wstring>> get_pairs(const std::wstring &word);
+  static std::vector<std::pair<std::wstring, std::wstring>> get_pairs(
+      const std::wstring &word);
 
 #ifdef UNIT_TEST
   FRIEND_TEST(TokenizerBPE, RegexCompilation);

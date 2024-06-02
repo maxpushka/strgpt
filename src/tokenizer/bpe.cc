@@ -1,15 +1,15 @@
+#include "bpe.h"
+
 #include <codecvt>
+#include <fstream>
+#include <iostream>
+#include <locale>
+#include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <utility>
-#include <memory>
-#include <locale>
-#include <iostream>
-#include <sstream>
-#include <fstream>
-
-#include "bpe.h"
 
 namespace tokenizer {
 BPE::BPE(std::istream &config_file) {
@@ -21,16 +21,18 @@ BPE::BPE(std::istream &config_file) {
     vocab = config.at("model").at("vocab");
     merges = config.at("model").at("merges");
   } catch (json::parse_error &e) {
-    throw std::runtime_error("Error: failed to parse tokenizer config: " + std::string{e.what()});
+    throw std::runtime_error("Error: failed to parse tokenizer config: " +
+                             std::string{e.what()});
   } catch (json::out_of_range &e) {
     throw std::runtime_error("Error: JSON key error: " + std::string{e.what()});
   } catch (json::exception &e) {
-    throw std::runtime_error("Error: general JSON error: " + std::string{e.what()});
+    throw std::runtime_error("Error: general JSON error: " +
+                             std::string{e.what()});
   }
 
   load_vocab(vocab);
   load_merge_rules(merges);
-  load_bytes_to_unicode();  
+  load_bytes_to_unicode();
 }
 
 BPE::BPE(std::istream &config_file, std::regex re) : BPE(config_file) {
@@ -58,7 +60,7 @@ std::string BPE::decode(const std::vector<int> &ids) const {
   std::wstring w = utf8_to_wstring(concat);
   std::string r;
   for (const wchar_t &c : w) {
-    r.push_back(char(u2b_.at(c)));
+    r.push_back(static_cast<char>(u2b_.at(c)));
   }
   return r;
 }
@@ -75,8 +77,8 @@ void BPE::load_merge_rules(const nlohmann::json &ins) {
     std::string line = value.get<std::string>();
     int d = line.find(" ");  // merges.txt file use ASCII space
     bpe_ranks_.try_emplace({utf8_to_wstring(line.substr(0, d)),
-                           utf8_to_wstring(line.substr(d + 1))},
-                          std::stoi(key) - 1);
+                            utf8_to_wstring(line.substr(d + 1))},
+                           std::stoi(key) - 1);
   }
 }
 
@@ -127,17 +129,18 @@ std::vector<std::string> BPE::tokenize(const std::string &text) const {
   size_t i = text.find(eot);
   std::vector<std::string> result;
   while (i != std::string::npos) {
-    _tokenize(text.substr(s, i - s), result);
+    _tokenize(text.substr(s, i - s), &result);
     result.push_back(eot);
     s = i + eot.size();
     i = text.find(eot, s);
   }
-  _tokenize(text.substr(s), result);
+  _tokenize(text.substr(s), &result);
 
   return result;
 }
 
-void BPE::_tokenize(const std::string &text, std::vector<std::string> &result) const {
+void BPE::_tokenize(const std::string &text,
+                    std::vector<std::string> *result) const {
   std::smatch match;
   std::string token;
   std::string input = text;
@@ -149,7 +152,7 @@ void BPE::_tokenize(const std::string &text, std::vector<std::string> &result) c
     std::wstring wtoken = byte_encode_token(token);
     std::vector<std::wstring> bpe_tokens = bpe(wtoken);
     for (const auto &ws : bpe_tokens) {
-      result.push_back(wstring_to_utf8(ws));
+      result->push_back(wstring_to_utf8(ws));
     }
   }
 }
@@ -165,7 +168,7 @@ std::wstring BPE::byte_encode_token(const std::string &token) const {
   }
 
   return result;
-};
+}
 
 std::vector<std::wstring> BPE::bpe(const std::wstring &token) const {
   std::set<int> merged;  // records indices in pairs that were merged.
@@ -225,7 +228,8 @@ std::vector<std::wstring> BPE::bpe(const std::wstring &token) const {
   return result;
 }
 
-std::vector<std::pair<std::wstring, std::wstring>> BPE::get_pairs(const std::wstring &word) {
+std::vector<std::pair<std::wstring, std::wstring>> BPE::get_pairs(
+    const std::wstring &word) {
   std::vector<std::pair<std::wstring, std::wstring>> pairs;
   if (word.size() < 2) return pairs;
 
