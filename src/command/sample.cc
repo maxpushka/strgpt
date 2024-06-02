@@ -40,8 +40,7 @@ std::string get_prompt_from_editor() {
   return buffer.str();
 }
 
-void do_sample(const std::string &checkpoint_dir) {
-  torch::Device device = torch::kMPS;  // TODO: move to command options
+void do_sample(const std::string &checkpoint_dir, torch::Device device) {
   train::Checkpoint ckpt{checkpoint_dir, device, false};
   auto &model = ckpt.model;
 

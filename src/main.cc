@@ -21,11 +21,14 @@ int main(int argc, const char **argv) {
         args::ValueFlag<std::filesystem::path> checkpoint(
             subparser, "checkpoint", "Path to checkpoint directory",
             {"checkpoint"}, args::Options::Required);
+        args::ValueFlag<std::string> device(
+            subparser, "device", "Device to run the model on (cpu | cuda | mps, etc.)",
+            {"checkpoint"}, args::Options::Required);
         args::HelpFlag help(subparser, "help", "Display help information",
                             {'h', "help"});
 
         subparser.Parse();
-        command::do_sample(args::get(checkpoint));
+        command::do_sample(args::get(checkpoint), torch::Device{args::get(device)});
       });
 
   args::Command train(
