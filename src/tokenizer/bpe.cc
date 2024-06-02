@@ -109,13 +109,19 @@ void BPE::load_bytes_to_unicode() {
 }
 
 std::wstring BPE::utf8_to_wstring(const std::string &str) {
-  std::wstring_convert<std::codecvt_utf8<wchar_t>> convert;
-  return convert.from_bytes(str);
+  std::wstring_convert<
+      std::conditional_t<sizeof(wchar_t) == 4, std::codecvt_utf8<wchar_t>,
+                         std::codecvt_utf8_utf16<wchar_t>>>
+      converter;
+  return converter.from_bytes(str);
 }
 
-std::string BPE::wstring_to_utf8(const std::wstring &str) {
-  std::wstring_convert<std::codecvt_utf8<wchar_t>> convert;
-  return convert.to_bytes(str);
+std::string BPE::wstring_to_utf8(const std::wstring &wstr) {
+  std::wstring_convert<
+      std::conditional_t<sizeof(wchar_t) == 4, std::codecvt_utf8<wchar_t>,
+                         std::codecvt_utf8_utf16<wchar_t>>>
+      converter;
+  return converter.to_bytes(wstr);
 }
 
 std::string BPE::utf8(wchar_t c) {
