@@ -55,6 +55,7 @@ find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 # ------------------- JSON ---------------------
+message(STATUS "Downloading github.com/nlohmann/json")
 FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
 FetchContent_MakeAvailable(json)
 find_package(nlohmann_json REQUIRED)
@@ -70,25 +71,15 @@ if (NOT status_code EQUAL 0)
 endif ()
 
 # ------------------- args ---------------------
+message(STATUS "Downloading github.com/Taywee/args")
 FetchContent_Declare(
         args
         URL https://github.com/Taywee/args/archive/cc2368ca0d8a962862c96c00fe919e1480050f51.zip
 )
 FetchContent_MakeAvailable(args)
 
-# ------------------- curl ---------------------
-FetchContent_Declare(
-        curl
-        URL https://github.com/curl/curl/releases/download/curl-8_8_0/curl-8.8.0.zip
-)
-FetchContent_MakeAvailable(curl)
-
-list(APPEND CMAKE_PREFIX_PATH "${curl_SOURCE_DIR}")
-
-find_package(CURL REQUIRED)
-include_directories(${CURL_INCLUDE_DIR})
-
 # ------------------- Google Test ---------------------
+message(STATUS "Downloading github.com/google/googletest")
 FetchContent_Declare(
         googletest
         URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
@@ -115,7 +106,6 @@ target_link_libraries(${PROJECT_NAME}
         "${TORCH_LIBRARIES}"
         nlohmann_json::nlohmann_json
         taywee::args
-        ${CURL_LIBRARIES}
 )
 
 # ------------------- Tests ---------------------

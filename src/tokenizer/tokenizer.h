@@ -14,7 +14,7 @@ class Tokenizer {
       const std::string& text) const = 0;
   [[nodiscard]] virtual std::string decode(
       const std::vector<int>& ids) const = 0;
-  [[nodiscard]] virtual nlohmann::json dump_state() const = 0;
+  // [[nodiscard]] virtual nlohmann::json dump_state() const = 0; // TODO
 };
 
 enum class Type {

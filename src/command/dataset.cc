@@ -4,40 +4,14 @@
 #include <string>
 
 #include "command/command.h"
-#include "curl/curl.h"
 #include "tokenizer/bpe.h"
 #include "tokenizer/char.h"
 #include "tokenizer/tokenizer.h"
 
 namespace command {
 std::string download_data(const std::string& url) {
-  CURL* curl;
-  CURLcode res;
-  std::string data;
-
-  curl_global_init(CURL_GLOBAL_DEFAULT);
-  curl = curl_easy_init();
-  if (curl) {
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(
-        curl, CURLOPT_WRITEFUNCTION,
-        [](void* ptr, size_t size, size_t nmemb, void* userdata) -> size_t {
-          std::string* data = static_cast<std::string*>(userdata);
-          data->append(static_cast<char*>(ptr), size * nmemb);
-          return size * nmemb;
-        });
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
-    res = curl_easy_perform(curl);
-    curl_easy_cleanup(curl);
-  }
-  curl_global_cleanup();
-
-  if (res != CURLE_OK) {
-    throw std::runtime_error("Failed to download data: " +
-                             std::string(curl_easy_strerror(res)));
-  }
-
-  return data;
+  // TODO: implement me with cURLpp
+  return std::string{};
 }
 
 void save_to_file(const std::string& path, const std::string& data) {
