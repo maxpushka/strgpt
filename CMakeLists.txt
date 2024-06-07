@@ -58,7 +58,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 message(STATUS "Downloading github.com/nlohmann/json")
 FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
 FetchContent_MakeAvailable(json)
-find_package(nlohmann_json REQUIRED)
 
 file(DOWNLOAD # Download tokenizer config
         "https://huggingface.co/gpt2/raw/main/tokenizer.json"

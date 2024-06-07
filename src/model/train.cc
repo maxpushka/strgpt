@@ -290,7 +290,7 @@ void train_model(std::shared_ptr<model::GPT> model,
   double running_mfu = -1;
   size_t local_iter_num = 0;
   torch::amp::GradScaler scaler{
-      torch::amp::GradScalerOptions{}.enabled(device == torch::kCUDA)};
+      torch::amp::GradScalerOptions{}.enabled(false)};
 
   for (size_t iter_num = 0; iter_num < cfg.train.max_iters; ++iter_num) {
     // Determine and set the learning rate for this iteration

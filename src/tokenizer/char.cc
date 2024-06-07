@@ -6,7 +6,7 @@
 namespace tokenizer {
 CharLevel::CharLevel(const std::string& text) {
   const std::array<std::string, 2> corpus{
-      R"( !$&'",-.3:;?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz)",
+      R"( !@#$%^&*()-_=+[]{};:'",<.>/?\|1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz)",
       text,
   };
 
